@@ -1,0 +1,50 @@
+{
+	"info": {
+		"name": "Django Shop API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get CSRF Token",
+			"request": {
+				"method": "GET",
+				"url": "http://localhost:8000/api/auth/csrf/",
+				"header": []
+			}
+		},
+		{
+			"name": "Login",
+			"request": {
+				"method": "POST",
+				"url": "http://localhost:8000/api/auth/login/",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-CSRFToken",
+						"value": "{{csrftoken}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"kunam\",\n    \"password\": \"your_password\"\n}"
+				}
+			}
+		},
+		{
+			"name": "Get Customers",
+			"request": {
+				"method": "GET",
+				"url": "http://localhost:8000/api/users/?role=CUSTOMER",
+				"header": [
+					{
+						"key": "X-CSRFToken",
+						"value": "{{csrftoken}}"
+					}
+				]
+			}
+		}
+	]
+} 
