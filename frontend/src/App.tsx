@@ -8,7 +8,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Orders from './pages/Orders'
-import Cart from './components/Cart'
+import Cart from './pages/Cart'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {

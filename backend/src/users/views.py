@@ -138,3 +138,26 @@ class UserViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get user statistics"""
+        if request.user.role != 'MANAGER':
+            return Response(
+                {"detail": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get all active users
+        total_users = CustomUser.objects.filter(is_active=True).count()
+        
+        # Get pending approval users (active users that are not approved)
+        pending_approval = CustomUser.objects.filter(
+            is_active=True,
+            is_approved=False
+        ).count()
+        
+        return Response({
+            'total_users': total_users,
+            'pending_approval': pending_approval
+        })

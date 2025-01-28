@@ -1,6 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getOrders, updateOrderStatus } from '../services/api';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Skeleton } from '../components/ui/skeleton';
+import { Badge } from '../components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import { Separator } from '../components/ui/separator';
 
 interface OrderItem {
   id: number;
@@ -37,6 +51,24 @@ interface FilterState {
 }
 
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+const ALL_STATUSES = 'all';
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'delivered':
+      return 'bg-green-100 text-green-800';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'processing':
+      return 'bg-blue-100 text-blue-800';
+    case 'shipped':
+      return 'bg-purple-100 text-purple-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
 
 export default function Orders() {
   const { user } = useAuth();
@@ -49,7 +81,6 @@ export default function Orders() {
     endDate: ''
   });
 
-  // Debounced fetch function
   const debouncedFetch = useCallback(() => {
     const params = new URLSearchParams();
     
@@ -81,11 +112,10 @@ export default function Orders() {
       });
   }, [filters]);
 
-  // Debounced effect
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       debouncedFetch();
-    }, 300); // 300ms debounce delay
+    }, 300);
 
     return () => clearTimeout(timeoutId);
   }, [debouncedFetch]);
@@ -93,128 +123,141 @@ export default function Orders() {
   const handleStatusChange = async (orderId: number, newStatus: string) => {
     try {
       await updateOrderStatus(orderId, newStatus);
-      debouncedFetch(); // Use the same debounced fetch
+      debouncedFetch();
     } catch (err) {
       setError('Failed to update order status');
       console.error(err);
     }
   };
 
-  if (loading) return <div className="text-center p-4">Loading...</div>;
-  if (error) return <div className="text-red-500 text-center p-4">{error}</div>;
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Skeleton className="h-8 w-48 mb-8" />
+        <Skeleton className="h-[100px] mb-6" />
+        <div className="space-y-6">
+          <Skeleton className="h-[300px]" />
+          <Skeleton className="h-[300px]" />
+          <Skeleton className="h-[300px]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Orders</h1>
       
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        <h2 className="text-xl font-semibold mb-4">Filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Status
-            </label>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="block w-full rounded-md border-gray-300 shadow-sm"
-            >
-              <option value="">All Statuses</option>
-              {ORDER_STATUSES.map(status => (
-                <option key={status} value={status}>
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </option>
-              ))}
-            </select>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>Filter orders by status and date range</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select
+                value={filters.status || ALL_STATUSES}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === ALL_STATUSES ? '' : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_STATUSES}>All Statuses</SelectItem>
+                  {ORDER_STATUSES.map(status => (
+                    <SelectItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Start Date</label>
+              <Input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End Date</label>
+              <Input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+              />
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-              className="block w-full rounded-md border-gray-300 shadow-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              End Date
-            </label>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-              className="block w-full rounded-md border-gray-300 shadow-sm"
-            />
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {orders.length === 0 ? (
-        <div className="text-center text-gray-500">
-          No orders found.
-        </div>
+        <Card>
+          <CardContent className="text-center py-6 text-muted-foreground">
+            No orders found.
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-6">
           {orders.map((order) => (
-            <div
-              key={order.id}
-              className="bg-white rounded-lg shadow-md overflow-hidden"
-            >
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
+            <Card key={order.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
                   <div>
-                    <h2 className="text-xl font-semibold">
-                      Order #{order.id}
-                    </h2>
-                    <p className="text-gray-500">
+                    <CardTitle>Order #{order.id}</CardTitle>
+                    <CardDescription>
                       {new Date(order.created_at).toLocaleDateString()}
-                    </p>
-                    {(user?.role === 'MANAGER' || user?.role === 'EMPLOYEE') && order.user_details && (
-                      <div className="mt-2 text-sm">
-                        <p className="font-medium text-gray-700">Customer Details:</p>
-                        <p>Username: {order.user_details.username}</p>
-                        <p>Email: {order.user_details.email}</p>
-                        <p>Phone: {order.user_details.phone || 'N/A'}</p>
-                      </div>
-                    )}
+                    </CardDescription>
                   </div>
                   {user?.role === 'MANAGER' ? (
-                    <select
+                    <Select
                       value={order.status}
-                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      className="rounded-md border-gray-300 shadow-sm"
+                      onValueChange={(value) => handleStatusChange(order.id, value)}
                     >
-                      {ORDER_STATUSES.map(status => (
-                        <option key={status} value={status}>
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder={order.status.charAt(0).toUpperCase() + order.status.slice(1)} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ORDER_STATUSES.map(status => (
+                          <SelectItem key={status} value={status}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <span className={`px-3 py-1 rounded-full text-sm ${
-                      order.status === 'delivered'
-                        ? 'bg-green-100 text-green-800'
-                        : order.status === 'cancelled'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
+                    <Badge variant="secondary" className={getStatusColor(order.status)}>
                       {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                    </span>
+                    </Badge>
                   )}
                 </div>
-
-                <div className="border-t border-b py-4 mb-4">
+                {(user?.role === 'MANAGER' || user?.role === 'EMPLOYEE') && order.user_details && (
+                  <div className="mt-4 space-y-1 text-sm">
+                    <p className="font-medium">Customer Details:</p>
+                    <p>Username: {order.user_details.username}</p>
+                    <p>Email: {order.user_details.email}</p>
+                    <p>Phone: {order.user_details.phone || 'N/A'}</p>
+                  </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
                   {order.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex justify-between items-center py-2"
-                    >
+                    <div key={item.id} className="flex justify-between items-center">
                       <div>
                         <p className="font-medium">{item.product_detail.name}</p>
-                        <p className="text-gray-500">
+                        <p className="text-sm text-muted-foreground">
                           Quantity: {item.quantity} × ₹{item.price}
                         </p>
                       </div>
@@ -224,49 +267,52 @@ export default function Orders() {
                     </div>
                   ))}
                 </div>
-
-                <div className="flex justify-between items-start">
+              </CardContent>
+              <Separator />
+              <CardFooter className="mt-4">
+                <div className="flex justify-between items-start w-full">
                   <div>
                     <p className="font-medium mb-1">Shipping Address:</p>
-                    <p className="text-gray-600 whitespace-pre-line">
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">
                       {order.shipping_address}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">Total Amount</p>
+                    <p className="text-sm text-muted-foreground">Total Amount</p>
                     <p className="text-xl font-bold">
                       ₹{Number(order.total_amount).toFixed(2)}
                     </p>
                     {order.payment_deadline && (
                       <div className="mt-2">
-                        <p className="text-sm text-gray-500">Payment Due</p>
-                        <p className="text-sm">
-                          {(() => {
-                            const createdDate = new Date(order.created_at);
-                            const dueDate = new Date(createdDate);
-                            dueDate.setDate(dueDate.getDate() + order.payment_deadline);
-                            const today = new Date();
-                            const daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                            
-                            return (
-                              <>
-                                <span className={`font-medium ${daysRemaining > 3 ? 'text-green-600' : daysRemaining > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                  {daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Payment Overdue'}
-                                </span>
-                                <br />
-                                <span className="text-gray-500">
-                                  Due by {dueDate.toLocaleDateString()}
-                                </span>
-                              </>
-                            );
-                          })()}
-                        </p>
+                        <p className="text-sm text-muted-foreground">Payment Due</p>
+                        {(() => {
+                          const createdDate = new Date(order.created_at);
+                          const dueDate = new Date(createdDate);
+                          dueDate.setDate(dueDate.getDate() + order.payment_deadline);
+                          const today = new Date();
+                          const daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          
+                          return (
+                            <div className="text-sm">
+                              <p className={`font-medium ${
+                                daysRemaining > 3 ? 'text-green-600' : 
+                                daysRemaining > 0 ? 'text-yellow-600' : 
+                                'text-red-600'
+                              }`}>
+                                {daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Payment Overdue'}
+                              </p>
+                              <p className="text-muted-foreground">
+                                Due by {dueDate.toLocaleDateString()}
+                              </p>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
+              </CardFooter>
+            </Card>
           ))}
         </div>
       )}

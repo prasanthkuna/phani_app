@@ -196,6 +196,7 @@ export const updateOrderStatus = (id: number, status: string) => api.patch(`/ord
 export const getUsers = () => api.get('/users/');
 export const getCustomers = () => api.get('/users/?role=CUSTOMER');
 export const approveUser = (id: number) => api.patch(`/users/${id}/`, { is_approved: true });
+export const getUserStats = () => api.get('/users/stats/');
 
 // Cart endpoints
 export const getCart = async (userId?: number) => {

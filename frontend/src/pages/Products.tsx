@@ -2,16 +2,35 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../services/api';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Skeleton } from '../components/ui/skeleton';
+import { Plus, Minus, Edit, Trash } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../components/ui/form';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 
 interface Product {
   id: number;
-  name: string;
-  description: string;
-  price: number;
-  stock: number;
-}
-
-interface ProductFormData {
   name: string;
   description: string;
   price: number;
@@ -22,6 +41,13 @@ interface ProductQuantity {
   [key: number]: number;
 }
 
+const productSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string(),
+  price: z.number().min(0, 'Price must be greater than or equal to 0'),
+  stock: z.number().min(0, 'Stock must be greater than or equal to 0'),
+});
+
 export default function Products() {
   const { user } = useAuth();
   const { addToCart } = useCart();
@@ -31,16 +57,31 @@ export default function Products() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [quantities, setQuantities] = useState<ProductQuantity>({});
-  const [formData, setFormData] = useState<ProductFormData>({
-    name: '',
-    description: '',
-    price: 0,
-    stock: 0,
+
+  const form = useForm({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      price: 0,
+      stock: 0,
+    },
   });
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (editingProduct) {
+      form.reset({
+        name: editingProduct.name,
+        description: editingProduct.description,
+        price: editingProduct.price,
+        stock: editingProduct.stock,
+      });
+    }
+  }, [editingProduct, form]);
 
   const fetchProducts = async () => {
     try {
@@ -54,41 +95,21 @@ export default function Products() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: name === 'price' || name === 'stock' ? Number(value) : value
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (data: z.infer<typeof productSchema>) => {
     try {
       if (editingProduct) {
-        await updateProduct(editingProduct.id, formData);
+        await updateProduct(editingProduct.id, data);
       } else {
-        await createProduct(formData);
+        await createProduct(data);
       }
       await fetchProducts();
       setShowAddForm(false);
       setEditingProduct(null);
-      setFormData({ name: '', description: '', price: 0, stock: 0 });
+      form.reset();
     } catch (err) {
       setError('Failed to save product');
       console.error(err);
     }
-  };
-
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name,
-      description: product.description,
-      price: product.price,
-      stock: product.stock,
-    });
-    setShowAddForm(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -115,7 +136,6 @@ export default function Products() {
     try {
       const quantity = quantities[product.id] || 1;
       await addToCart(product.id, quantity);
-      // Reset quantity after adding to cart
       setQuantities(prev => ({ ...prev, [product.id]: 1 }));
     } catch (err) {
       setError('Failed to add item to cart');
@@ -123,111 +143,136 @@ export default function Products() {
     }
   };
 
-  if (loading) return <div className="text-center p-4">Loading...</div>;
-  if (error) return <div className="text-red-500 text-center p-4">{error}</div>;
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Skeleton className="h-8 w-48 mb-8" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-[300px]" />
+          <Skeleton className="h-[300px]" />
+          <Skeleton className="h-[300px]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Products</h1>
         {user?.role === 'MANAGER' && (
-          <button
-            onClick={() => {
-              setShowAddForm(true);
-              setEditingProduct(null);
-              setFormData({ name: '', description: '', price: 0, stock: 0 });
-            }}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
-            Add New Product
-          </button>
+          <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setEditingProduct(null);
+                form.reset();
+              }}>
+                Add New Product
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+                <DialogDescription>
+                  {editingProduct 
+                    ? 'Edit the product details below'
+                    : 'Fill in the product details below'}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price (₹)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            {...field} 
+                            onChange={e => field.onChange(parseFloat(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="stock"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Stock</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            {...field}
+                            onChange={e => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end space-x-4">
+                    <Button variant="outline" onClick={() => setShowAddForm(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">
+                      {editingProduct ? 'Update' : 'Add'} Product
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
-      {showAddForm && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">
-            {editingProduct ? 'Edit Product' : 'Add New Product'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                rows={3}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Price (₹)</label>
-              <input
-                type="number"
-                name="price"
-                value={formData.price}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                min="0"
-                step="0.01"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Stock</label>
-              <input
-                type="number"
-                name="stock"
-                value={formData.stock}
-                onChange={handleInputChange}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                min="0"
-                required
-              />
-            </div>
-            <div className="flex justify-end space-x-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddForm(false);
-                  setEditingProduct(null);
-                }}
-                className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                {editingProduct ? 'Update' : 'Add'} Product
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map((product) => (
-          <div
-            key={product.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden"
-          >
-            <div className="p-4">
-              <h2 className="text-xl font-semibold mb-2">{product.name}</h2>
-              <p className="text-gray-600 mb-4">{product.description}</p>
-              <div className="flex justify-between items-center">
+          <Card key={product.id}>
+            <CardHeader>
+              <CardTitle>{product.name}</CardTitle>
+              <CardDescription>{product.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-4">
                 <span className="text-lg font-bold">₹{product.price}</span>
                 <span className={`text-sm ${
                   product.stock > 0 ? 'text-green-600' : 'text-red-600'
@@ -235,57 +280,60 @@ export default function Products() {
                   {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
                 </span>
               </div>
-              <div className="mt-4 space-x-2">
-                {product.stock > 0 && (
-                  <div className="flex items-center space-x-2 mb-2">
-                    <button
-                      onClick={() => handleQuantityChange(product.id, -1)}
-                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 w-8 h-8 rounded-full flex items-center justify-center"
-                    >
-                      -
-                    </button>
-                    <span className="w-8 text-center">
-                      {quantities[product.id] || 1}
-                    </span>
-                    <button
-                      onClick={() => handleQuantityChange(product.id, 1)}
-                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 w-8 h-8 rounded-full flex items-center justify-center"
-                      disabled={quantities[product.id] >= product.stock}
-                    >
-                      +
-                    </button>
-                  </div>
-                )}
-                <button
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.stock === 0}
-                  className={`py-2 px-4 rounded ${
-                    product.stock > 0
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-gray-300 cursor-not-allowed text-gray-500'
-                  }`}
-                >
-                  Add to Cart
-                </button>
-                {user?.role === 'MANAGER' && (
-                  <>
-                    <button
-                      onClick={() => handleEdit(product)}
-                      className="bg-yellow-500 text-white py-2 px-4 rounded hover:bg-yellow-600"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(product.id)}
-                      className="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+              {product.stock > 0 && (
+                <div className="flex items-center space-x-2 mb-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleQuantityChange(product.id, -1)}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-8 text-center">
+                    {quantities[product.id] || 1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleQuantityChange(product.id, 1)}
+                    disabled={quantities[product.id] >= product.stock}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button
+                onClick={() => handleAddToCart(product)}
+                disabled={product.stock === 0}
+                variant={product.stock > 0 ? "default" : "outline"}
+              >
+                Add to Cart
+              </Button>
+              {user?.role === 'MANAGER' && (
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setEditingProduct(product);
+                      setShowAddForm(true);
+                    }}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => handleDelete(product.id)}
+                  >
+                    <Trash className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </CardFooter>
+          </Card>
         ))}
       </div>
     </div>
