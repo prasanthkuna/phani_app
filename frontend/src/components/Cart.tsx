@@ -29,7 +29,7 @@ export default function Cart() {
         shipping_address: shippingAddress,
         payment_deadline: paymentDeadline,
         items: items.map(item => ({
-          product: item.product.id,
+          product_id: item.product.id,
           quantity: item.quantity
         })),
         ...(selectedUserId && { user_id: selectedUserId })
@@ -101,7 +101,7 @@ export default function Cart() {
             >
               <div className="flex-1">
                 <h3 className="font-medium">{item.product.name}</h3>
-                <p className="text-gray-600">${Number(item.product.price).toFixed(2)} each</p>
+                <p className="text-gray-600">₹{Number(item.product.price).toFixed(2)} each</p>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
@@ -119,7 +119,7 @@ export default function Cart() {
                     +
                   </button>
                 </div>
-                <span className="w-24 text-right">${Number(item.total).toFixed(2)}</span>
+                <span className="w-24 text-right">₹{Number(item.total).toFixed(2)}</span>
                 <button
                   onClick={() => removeItem(item.product.id)}
                   className="text-red-500 hover:text-red-700"
@@ -133,7 +133,7 @@ export default function Cart() {
           <div className="mt-6 pt-6 border-t">
             <div className="flex justify-between text-xl font-bold">
               <span>Total:</span>
-              <span>${Number(total).toFixed(2)}</span>
+              <span>₹{Number(total).toFixed(2)}</span>
             </div>
           </div>
 

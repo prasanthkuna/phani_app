@@ -215,11 +215,11 @@ export default function Orders() {
                       <div>
                         <p className="font-medium">{item.product_detail.name}</p>
                         <p className="text-gray-500">
-                          Quantity: {item.quantity} × ${item.price}
+                          Quantity: {item.quantity} × ₹{item.price}
                         </p>
                       </div>
                       <p className="font-medium">
-                        ${(item.quantity * item.price).toFixed(2)}
+                        ₹{(item.quantity * item.price).toFixed(2)}
                       </p>
                     </div>
                   ))}
@@ -235,7 +235,7 @@ export default function Orders() {
                   <div className="text-right">
                     <p className="text-sm text-gray-500">Total Amount</p>
                     <p className="text-xl font-bold">
-                      ${Number(order.total_amount).toFixed(2)}
+                      ₹{Number(order.total_amount).toFixed(2)}
                     </p>
                     {order.payment_deadline && (
                       <div className="mt-2">

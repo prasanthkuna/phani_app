@@ -172,7 +172,7 @@ export default function Products() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Price</label>
+              <label className="block text-sm font-medium text-gray-700">Price (₹)</label>
               <input
                 type="number"
                 name="price"
@@ -228,7 +228,7 @@ export default function Products() {
               <h2 className="text-xl font-semibold mb-2">{product.name}</h2>
               <p className="text-gray-600 mb-4">{product.description}</p>
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold">${product.price}</span>
+                <span className="text-lg font-bold">₹{product.price}</span>
                 <span className={`text-sm ${
                   product.stock > 0 ? 'text-green-600' : 'text-red-600'
                 }`}>

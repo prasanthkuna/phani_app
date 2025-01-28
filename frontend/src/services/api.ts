@@ -83,7 +83,7 @@ api.interceptors.request.use(
     // For non-GET requests or sensitive GET requests, ensure CSRF token exists
     if (config.method !== 'get' || 
         (typeof config.url === 'string' && 
-         (config.url.includes('stats') || config.url.includes('users')))) {
+         (config.url.includes('stats') || config.url.includes('users') || config.url.includes('cart') || config.url.includes('orders')))) {
       try {
         const token = await getCSRFToken();
         config.headers['X-CSRFToken'] = token;
@@ -149,6 +149,17 @@ api.interceptors.response.use(
   }
 );
 
+// Auth endpoints
+export const login = async (username: string, password: string) => {
+  // First, get CSRF token
+  await getCSRFToken();
+  // Then make login request
+  return api.post('/auth/login/', { username, password });
+};
+
+export const logout = () => api.post('/auth/logout/');
+export const checkAuth = () => api.get('/auth/session/');
+
 // Product endpoints
 export const getProducts = () => api.get('/products/');
 export const getProduct = (id: number) => api.get(`/products/${id}/`);
@@ -161,12 +172,24 @@ export const getProductStats = () => api.get('/products/stats/');
 // Order endpoints
 export const getOrders = (queryString: string = '') => api.get(`/orders/${queryString}`);
 export const getOrder = (id: number) => api.get(`/orders/${id}/`);
-export const createOrder = (data: {
+
+interface CreateOrderItem {
+  product_id: number;
+  quantity: number;
+}
+
+interface CreateOrderData {
   shipping_address: string;
-  items: { product: number; quantity: number }[];
-  user_id?: number;
   payment_deadline: number;
-}) => api.post('/orders/', data);
+  items: CreateOrderItem[];
+  user_id?: number;
+}
+
+export const createOrder = async (data: CreateOrderData) => {
+  await getCSRFToken();
+  return api.post('/orders/', data);
+};
+
 export const updateOrderStatus = (id: number, status: string) => api.patch(`/orders/${id}/`, { status });
 
 // User endpoints
@@ -175,22 +198,32 @@ export const getCustomers = () => api.get('/users/?role=CUSTOMER');
 export const approveUser = (id: number) => api.patch(`/users/${id}/`, { is_approved: true });
 
 // Cart endpoints
-export const getCart = (userId?: number) => 
-  api.get(userId ? `/orders/cart/?user_id=${userId}` : '/orders/cart/');
+export const getCart = async (userId?: number) => {
+  await getCSRFToken();
+  return api.get(userId ? `/shopping-cart/?user_id=${userId}` : '/shopping-cart/');
+};
 
-export const addToCart = (productId: number, quantity: number = 1, userId?: number) => 
-  api.post(userId ? `/orders/cart/add_item/?user_id=${userId}` : '/orders/cart/add_item/', 
-    { product_id: productId, quantity });
+export const addToCart = async (productId: number, quantity: number = 1, userId?: number) => {
+  await getCSRFToken();
+  const data = { product_id: productId, quantity };
+  return api.post(userId ? `/shopping-cart/add_item/?user_id=${userId}` : '/shopping-cart/add_item/', data);
+};
 
-export const updateCartItem = (productId: number, quantity: number, userId?: number) => 
-  api.post(userId ? `/orders/cart/update_item/?user_id=${userId}` : '/orders/cart/update_item/',
-    { product_id: productId, quantity });
+export const updateCartItem = async (productId: number, quantity: number, userId?: number) => {
+  await getCSRFToken();
+  const data = { product_id: productId, quantity };
+  return api.post(userId ? `/shopping-cart/update_item/?user_id=${userId}` : '/shopping-cart/update_item/', data);
+};
 
-export const removeFromCart = (productId: number, userId?: number) => 
-  api.post(userId ? `/orders/cart/remove_item/?user_id=${userId}` : '/orders/cart/remove_item/',
-    { product_id: productId });
+export const removeFromCart = async (productId: number, userId?: number) => {
+  await getCSRFToken();
+  const data = { product_id: productId };
+  return api.post(userId ? `/shopping-cart/remove_item/?user_id=${userId}` : '/shopping-cart/remove_item/', data);
+};
 
-export const clearCart = (userId?: number) => 
-  api.post(userId ? `/orders/cart/clear/?user_id=${userId}` : '/orders/cart/clear/');
+export const clearCart = async (userId?: number) => {
+  await getCSRFToken();
+  return api.post(userId ? `/shopping-cart/clear/?user_id=${userId}` : '/shopping-cart/clear/');
+};
 
 export default api; 

@@ -9,62 +9,62 @@ class Command(BaseCommand):
         products = [
             {
                 'name': 'RoundUp Pro',
-                'description': 'Professional-grade herbicide for broad-spectrum weed control. Effective against most annual and perennial weeds.',
-                'price': Decimal('49.99'),
+                'description': 'Professional-grade herbicide for broad-spectrum weed control. Effective for Indian agricultural conditions.',
+                'price': Decimal('1499.00'),
                 'stock': 100
             },
             {
                 'name': 'Malathion 50',
-                'description': 'Broad-spectrum insecticide effective against various insects including aphids, spider mites, and scales.',
-                'price': Decimal('34.99'),
+                'description': 'Broad-spectrum insecticide effective against various insects common in Indian crops.',
+                'price': Decimal('899.00'),
                 'stock': 75
             },
             {
                 'name': 'Neem Oil Organic',
-                'description': 'Natural pesticide derived from neem seeds. Safe for organic farming and effective against various pests.',
-                'price': Decimal('19.99'),
+                'description': 'Natural pesticide derived from neem seeds. Perfect for organic farming in Indian conditions.',
+                'price': Decimal('499.00'),
                 'stock': 150
             },
             {
                 'name': 'Copper Fungicide',
-                'description': 'Controls various plant diseases including powdery mildew, downy mildew, and black spot.',
-                'price': Decimal('24.99'),
+                'description': 'Controls various plant diseases in tropical conditions. Ideal for Indian agriculture.',
+                'price': Decimal('699.00'),
                 'stock': 85
             },
             {
                 'name': 'Pyrethrin Natural',
-                'description': 'Natural insecticide derived from chrysanthemum flowers. Fast-acting against flying and crawling insects.',
-                'price': Decimal('29.99'),
+                'description': 'Natural insecticide effective in tropical climate. Safe for Indian agricultural use.',
+                'price': Decimal('799.00'),
                 'stock': 60
             },
             {
                 'name': 'Bacillus Thuringiensis (Bt)',
-                'description': 'Biological pesticide effective against caterpillars and other leaf-eating insects.',
-                'price': Decimal('15.99'),
+                'description': 'Biological pesticide effective against caterpillars in Indian crops.',
+                'price': Decimal('449.00'),
                 'stock': 120
             },
             {
                 'name': 'Sulfur Dust',
-                'description': 'Controls fungal diseases and mites. Commonly used in orchards and vineyards.',
-                'price': Decimal('12.99'),
+                'description': 'Controls fungal diseases in Indian orchards and vineyards.',
+                'price': Decimal('349.00'),
                 'stock': 200
             },
             {
                 'name': 'Spinosad Organic',
-                'description': 'Natural insect control product effective against various pests while being safe for beneficial insects.',
-                'price': Decimal('39.99'),
+                'description': 'Natural insect control product safe for Indian organic farming.',
+                'price': Decimal('999.00'),
                 'stock': 90
             },
             {
                 'name': 'Azadirachtin Extract',
-                'description': 'Concentrated neem extract that acts as an insect growth regulator and antifeedant.',
-                'price': Decimal('44.99'),
+                'description': 'Concentrated neem extract, traditionally used in Indian agriculture.',
+                'price': Decimal('1299.00'),
                 'stock': 70
             },
             {
                 'name': 'Diatomaceous Earth',
-                'description': 'Natural powder that controls crawling insects through physical action. Safe for food storage areas.',
-                'price': Decimal('16.99'),
+                'description': 'Natural powder for pest control in Indian warehouses and storage.',
+                'price': Decimal('449.00'),
                 'stock': 180
             }
         ]

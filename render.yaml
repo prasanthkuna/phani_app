@@ -3,7 +3,7 @@ services:
     name: phani-react-backend
     env: python
     buildCommand: "./backend/build.sh"
-    startCommand: "cd backend && gunicorn backend.wsgi:application"
+    startCommand: "cd backend/src && gunicorn backend.wsgi:application"
     envVars:
       - key: DATABASE_URL
         fromDatabase:

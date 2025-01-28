@@ -58,10 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (userData: any) => {
     try {
       const response = await api.post('/users/', userData)
-      setUser(response.data)
+      // Don't set user state after registration
+      // Instead, let them log in after approval
+      return response.data
     } catch (error: any) {
       console.error('Registration error:', error)
-      const message = error.response?.data?.message || error.message || 'Registration failed'
+      const message = error.response?.data?.detail || error.message || 'Registration failed'
       throw new Error(message)
     }
   }

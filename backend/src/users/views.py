@@ -2,15 +2,14 @@ from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from django.contrib.auth import get_user_model, login, logout, authenticate
+from django.contrib.auth import login, logout, authenticate
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect, csrf_exempt
 from django.utils.decorators import method_decorator
 from .serializers import UserSerializer, UserUpdateSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from .models import CustomUser
 import logging
-
-User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +25,20 @@ def csrf_token(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_protect
+@ensure_csrf_cookie
 def login_view(request):
+    """
+    Login view that sets CSRF cookie and handles authentication
+    """
     username = request.data.get('username')
     password = request.data.get('password')
+    
+    if not username or not password:
+        return Response(
+            {'detail': 'Please provide both username and password'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
     user = authenticate(username=username, password=password)
     
     if user is not None:
@@ -61,7 +70,7 @@ def logout_view(request):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    queryset = CustomUser.objects.all()
     
     def get_serializer_class(self):
         if self.action in ['create']:
@@ -103,7 +112,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         
         # Get base queryset
-        queryset = User.objects.filter(is_active=True)
+        queryset = CustomUser.objects.filter(is_active=True)
         logger.debug(f"Base queryset count: {queryset.count()}")
         
         # Filter by role if specified

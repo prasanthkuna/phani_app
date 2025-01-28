@@ -3,27 +3,7 @@ from django.conf import settings
 from products.models import Product
 from django.utils import timezone
 from datetime import datetime
-
-class Cart(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def get_total(self):
-        return sum(item.get_total() for item in self.items.all())
-
-class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, related_name='items', on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def get_total(self):
-        return self.product.price * self.quantity
-
-    class Meta:
-        unique_together = ('cart', 'product')
+from users.models import CustomUser
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -34,7 +14,7 @@ class Order(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -43,7 +23,7 @@ class Order(models.Model):
     payment_deadline = models.PositiveIntegerField(help_text="Number of days allowed for payment", default=7)
 
     def __str__(self):
-        return f"Order {self.id} by {self.user.email}"
+        return f"Order {self.id} by {self.user.username}"
 
     def get_days_remaining(self):
         if self.status != 'pending':

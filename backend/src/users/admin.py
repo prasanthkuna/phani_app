@@ -1,10 +1,12 @@
 from django.contrib import admin
-from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import Group
+from .models import CustomUser
 
-User = get_user_model()
+# Unregister the default User admin and Group
+admin.site.unregister(Group)
 
-@admin.register(User)
+@admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     list_display = ('username', 'email', 'role', 'is_approved', 'is_active', 'date_joined')
     list_filter = ('role', 'is_approved', 'is_active', 'date_joined')
