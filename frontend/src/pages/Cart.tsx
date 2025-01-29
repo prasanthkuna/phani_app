@@ -22,6 +22,7 @@ import {
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { LocationCheck } from '../components/LocationCheck';
 
 const checkoutSchema = z.object({
   shipping_address: z.string().min(1, 'Shipping address is required'),
@@ -34,6 +35,7 @@ export default function Cart() {
   const [orderError, setOrderError] = useState('');
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [locationGranted, setLocationGranted] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(checkoutSchema),
@@ -45,10 +47,24 @@ export default function Cart() {
 
   const handleCheckout = async (data: z.infer<typeof checkoutSchema>) => {
     try {
+      if (!user?.role) {
+        setOrderError('User role not found. Please log in again.');
+        return;
+      }
+
+      console.log('Checkout initiated with user role:', user.role);
+      console.log('Location granted status:', locationGranted);
+      
+      if (['MANAGER', 'EMPLOYEE'].includes(user.role) && !locationGranted) {
+        console.log('Location not granted for employee/manager');
+        setOrderError('Location access is required to place orders');
+        return;
+      }
+
       setIsSubmitting(true);
       setOrderError('');
 
-      await createOrder({
+      const orderData = {
         shipping_address: data.shipping_address,
         payment_deadline: data.payment_deadline,
         items: items.map(item => ({
@@ -56,14 +72,16 @@ export default function Cart() {
           quantity: item.quantity
         })),
         ...(selectedUserId && { user_id: selectedUserId })
-      });
+      };
 
+      console.log('Sending order data from Cart:', orderData);
+      await createOrder(orderData, user.role);
       await clearCart();
       form.reset();
       setOrderSuccess(true);
-    } catch (err) {
-      console.error('Error creating order:', err);
-      setOrderError('Failed to create order');
+    } catch (error) {
+      console.error('Checkout error:', error);
+      setOrderError(error instanceof Error ? error.message : 'Failed to place order');
     } finally {
       setIsSubmitting(false);
     }
@@ -102,6 +120,15 @@ export default function Cart() {
           </Button>
         </CardFooter>
       </Card>
+    );
+  }
+
+  if (user?.role && ['MANAGER', 'EMPLOYEE'].includes(user.role) && !locationGranted) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">Shopping Cart</h1>
+        <LocationCheck onLocationGranted={() => setLocationGranted(true)} />
+      </div>
     );
   }
 

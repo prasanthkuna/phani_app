@@ -22,6 +22,13 @@ class Order(models.Model):
     shipping_address = models.TextField()
     payment_deadline = models.PositiveIntegerField(help_text="Number of days allowed for payment", default=7)
 
+    # Location fields
+    location_state = models.CharField(max_length=100, blank=True, default='')
+    location_display_name = models.TextField(blank=True, default='')
+    location_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    created_by_role = models.CharField(max_length=20, default='CUSTOMER')  # To track which role created the order
+
     def __str__(self):
         return f"Order {self.id} by {self.user.username}"
 

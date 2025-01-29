@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { LocationData, getCurrentLocation } from './location';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -183,10 +184,41 @@ interface CreateOrderData {
   payment_deadline: number;
   items: CreateOrderItem[];
   user_id?: number;
+  location_state?: string;
+  location_display_name?: string;
+  location_latitude?: number;
+  location_longitude?: number;
 }
 
-export const createOrder = async (data: CreateOrderData) => {
+export const createOrder = async (data: CreateOrderData, userRole: string) => {
   await getCSRFToken();
+  
+  console.log('Creating order as logged-in user with role:', userRole);
+  
+  // Check if logged-in user is employee/manager
+  if (['MANAGER', 'EMPLOYEE'].includes(userRole)) {
+    console.log('Logged-in user is employee/manager, getting location...');
+    try {
+      const location = await getCurrentLocation();
+      console.log('Got location data:', location);
+      
+      const orderData: CreateOrderData = {
+        ...data,
+        location_state: location.state,
+        location_display_name: location.display_name,
+        location_latitude: location.latitude,
+        location_longitude: location.longitude
+      };
+      console.log('Final order data with location:', orderData);
+      return api.post('/orders/', orderData);
+    } catch (error) {
+      console.error('Error getting location for order:', error);
+      throw new Error('Location access is required for employees and managers to place orders.');
+    }
+  }
+  
+  // For customers, proceed without location
+  console.log('Sending order data without location for customer:', data);
   return api.post('/orders/', data);
 };
 

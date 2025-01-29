@@ -42,6 +42,11 @@ interface Order {
     phone: string;
     address: string;
   };
+  location_state?: string;
+  location_display_name?: string;
+  location_latitude?: number;
+  location_longitude?: number;
+  created_by_role?: string;
 }
 
 interface FilterState {
@@ -271,11 +276,25 @@ export default function Orders() {
               <Separator />
               <CardFooter className="mt-4">
                 <div className="flex justify-between items-start w-full">
-                  <div>
-                    <p className="font-medium mb-1">Shipping Address:</p>
-                    <p className="text-sm text-muted-foreground whitespace-pre-line">
-                      {order.shipping_address}
-                    </p>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="font-medium mb-1">Shipping Address:</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">
+                        {order.shipping_address}
+                      </p>
+                    </div>
+                    {user?.role === 'MANAGER' && order.created_by_role !== 'CUSTOMER' && (
+                      <div>
+                        <p className="font-medium mb-1">Location Details:</p>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          <p>State: {order.location_state}</p>
+                          <p className="whitespace-pre-line">Full Address: {order.location_display_name}</p>
+                          <p className="text-xs">
+                            Coordinates: {order.location_latitude ? Number(order.location_latitude).toFixed(5) : 'N/A'}, {order.location_longitude ? Number(order.location_longitude).toFixed(5) : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">Total Amount</p>
