@@ -10,6 +10,9 @@ from .serializers import UserSerializer, UserUpdateSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import CustomUser
 import logging
+from django.db.models import Count, Sum
+from orders.models import Order
+from products.models import Product
 
 logger = logging.getLogger(__name__)
 
@@ -161,3 +164,25 @@ class UserViewSet(viewsets.ModelViewSet):
             'total_users': total_users,
             'pending_approval': pending_approval
         })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_stats(request):
+    """Get statistics for the authenticated user."""
+    user = request.user
+    
+    # Get order stats
+    orders = Order.objects.filter(user=user)
+    total_orders = orders.count()
+    total_spent = orders.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    
+    # Get product stats if user is staff
+    total_products = 0
+    if user.is_staff:
+        total_products = Product.objects.count()
+    
+    return Response({
+        'total_orders': total_orders,
+        'total_spent': total_spent,
+        'total_products': total_products,
+    })

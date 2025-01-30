@@ -164,15 +164,47 @@ export const checkAuth = () => api.get('/auth/session/');
 // Product endpoints
 export const getProducts = () => api.get('/products/');
 export const getProduct = (id: number) => api.get(`/products/${id}/`);
-export const createProduct = (data: any) => api.post('/products/', data);
-export const updateProduct = (id: number, data: any) => api.put(`/products/${id}/`, data);
+export const createProduct = (data: FormData) => {
+  const config = {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  };
+  return api.post('/products/', data, config);
+};
+export const updateProduct = (id: number, data: FormData) => {
+  const config = {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  };
+  return api.patch(`/products/${id}/`, data, config);
+};
 export const deleteProduct = (id: number) => api.delete(`/products/${id}/`);
 export const getLowStockProducts = () => api.get('/products/low_stock/');
 export const getProductStats = () => api.get('/products/stats/');
 
 // Order endpoints
-export const getOrders = (queryString: string = '') => api.get(`/orders/${queryString}`);
+export const getOrders = (queryString: string = '') => {
+  // Keep the search parameter as is - no need to split it
+  return api.get(`/orders/${queryString}`);
+};
+
 export const getOrder = (id: number) => api.get(`/orders/${id}/`);
+
+interface UpdateOrderData {
+  shipping_address?: string;
+  payment_deadline?: number;
+  items?: Array<{
+    product_id: number;
+    quantity: number;
+  }>;
+}
+
+export const updateOrder = (id: number, data: UpdateOrderData) => api.patch(`/orders/${id}/update_order/`, data);
+
+export const acceptOrder = (id: number) => api.post(`/orders/${id}/accept/`);
+export const rejectOrder = (id: number) => api.post(`/orders/${id}/reject/`);
 
 interface CreateOrderItem {
   product_id: number;
@@ -225,10 +257,24 @@ export const createOrder = async (data: CreateOrderData, userRole: string) => {
 export const updateOrderStatus = (id: number, status: string) => api.patch(`/orders/${id}/`, { status });
 
 // User endpoints
-export const getUsers = () => api.get('/users/');
+export const getUsers = async (queryParams: string = '') => {
+  return api.get(`/admin/manage/${queryParams ? `?${queryParams}` : ''}`);
+};
+
 export const getCustomers = () => api.get('/users/?role=CUSTOMER');
-export const approveUser = (id: number) => api.patch(`/users/${id}/`, { is_approved: true });
+export const approveUser = (id: number) => api.patch(`/admin/manage/${id}/update_status/`, { status: 'ACTIVE' });
+export const updateUserRole = async (userId: number, role: string) => {
+  return api.patch(`/admin/manage/${userId}/update_role/`, { role });
+};
+export const resetUserPassword = async (userId: number) => {
+  return api.post(`/admin/manage/${userId}/reset_password/`);
+};
 export const getUserStats = () => api.get('/users/stats/');
+
+// User Management
+export const updateUserStatus = async (userId: number, status: string) => {
+  return api.patch(`/admin/manage/${userId}/update_status/`, { status });
+};
 
 // Cart endpoints
 export const getCart = async (userId?: number) => {

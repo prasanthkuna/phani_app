@@ -31,6 +31,11 @@ export default function Layout({ children }: LayoutProps) {
                   <Link to="/dashboard" className="text-gray-800 hover:text-gray-600">
                     Dashboard
                   </Link>
+                  {user.role === 'MANAGER' && (
+                    <Link to="/users" className="text-gray-800 hover:text-gray-600">
+                      User Management
+                    </Link>
+                  )}
                 </>
               )}
             </div>

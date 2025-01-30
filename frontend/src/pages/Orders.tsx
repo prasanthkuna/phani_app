@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getOrders, updateOrderStatus } from '../services/api';
+import { getOrders, updateOrderStatus, acceptOrder, rejectOrder } from '../services/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -15,6 +15,9 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
+import { Edit, Check, X } from 'lucide-react';
+import { toast } from '../components/ui/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface OrderItem {
   id: number;
@@ -53,37 +56,49 @@ interface FilterState {
   status: string;
   startDate: string;
   endDate: string;
+  searchQuery: string;
+  paymentStatus: string;
 }
 
-const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+const ORDER_STATUSES = ['pending', 'accepted', 'rejected'];
+const PAYMENT_STATUSES = ['all', 'overdue', 'due_soon'];
 const ALL_STATUSES = 'all';
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'delivered':
-      return 'bg-green-100 text-green-800';
-    case 'cancelled':
-      return 'bg-red-100 text-red-800';
+    case 'accepted':
+      return 'bg-green-100 text-green-800 border-green-200';
+    case 'rejected':
+      return 'bg-red-100 text-red-800 border-red-200';
     case 'pending':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'processing':
-      return 'bg-blue-100 text-blue-800';
-    case 'shipped':
-      return 'bg-purple-100 text-purple-800';
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     default:
-      return 'bg-gray-100 text-gray-800';
+      return 'bg-gray-100 text-gray-800 border-gray-200';
   }
+};
+
+// Format date to DD/MM/YYYY
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
 };
 
 export default function Orders() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<FilterState>({
     status: '',
     startDate: '',
-    endDate: ''
+    endDate: '',
+    searchQuery: '',
+    paymentStatus: ''
   });
 
   const debouncedFetch = useCallback(() => {
@@ -92,11 +107,17 @@ export default function Orders() {
     if (filters.status) {
       params.append('status', filters.status);
     }
+    if (filters.paymentStatus && filters.paymentStatus !== 'all') {
+      params.append('payment_status', filters.paymentStatus);
+    }
     if (filters.startDate) {
       params.append('start_date', filters.startDate);
     }
     if (filters.endDate) {
       params.append('end_date', filters.endDate);
+    }
+    if (filters.searchQuery) {
+      params.append('search', filters.searchQuery);
     }
 
     const queryString = params.toString();
@@ -135,6 +156,52 @@ export default function Orders() {
     }
   };
 
+  const handleAcceptOrder = async (orderId: number) => {
+    try {
+      await acceptOrder(orderId);
+      toast({
+        title: "Success",
+        description: "Order accepted successfully"
+      });
+      debouncedFetch();
+    } catch (err) {
+      setError('Failed to accept order');
+      console.error(err);
+    }
+  };
+
+  const handleRejectOrder = async (orderId: number) => {
+    try {
+      await rejectOrder(orderId);
+      toast({
+        title: "Success",
+        description: "Order rejected successfully"
+      });
+      debouncedFetch();
+    } catch (err) {
+      setError('Failed to reject order');
+      console.error(err);
+    }
+  };
+
+  const handleEditOrder = (orderId: number) => {
+    navigate(`/orders/${orderId}/edit`);
+  };
+
+  const getStatusBadge = (status: string) => {
+    const badgeClasses: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      accepted: 'bg-green-100 text-green-800 border-green-200',
+      rejected: 'bg-red-100 text-red-800 border-red-200'
+    };
+
+    return (
+      <Badge variant="secondary" className={badgeClasses[status] || 'bg-gray-100 text-gray-800'}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -162,46 +229,74 @@ export default function Orders() {
       <h1 className="text-3xl font-bold mb-6">Orders</h1>
       
       <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter orders by status and date range</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select
-                value={filters.status || ALL_STATUSES}
-                onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === ALL_STATUSES ? '' : value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_STATUSES}>All Statuses</SelectItem>
-                  {ORDER_STATUSES.map(status => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date</label>
-              <Input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">End Date</label>
-              <Input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-              />
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            {(user?.role === 'MANAGER' || user?.role === 'EMPLOYEE') && (
+              <div className="w-full">
+                <Input
+                  type="text"
+                  placeholder="Search by customer name or product name..."
+                  value={filters.searchQuery}
+                  onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                  className="mt-1"
+                />
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Select
+                  value={filters.status || ALL_STATUSES}
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === ALL_STATUSES ? '' : value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Order Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_STATUSES}>All Statuses</SelectItem>
+                    {ORDER_STATUSES.map(status => (
+                      <SelectItem key={status} value={status}>
+                        <div className="flex items-center">
+                          <Badge variant="secondary" className={getStatusColor(status)}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Select
+                  value={filters.paymentStatus || 'all'}
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, paymentStatus: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Payment Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payments</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="due_soon">Due Soon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                  placeholder="Start Date"
+                />
+              </div>
+              <div>
+                <Input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                  placeholder="End Date"
+                />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -222,29 +317,43 @@ export default function Orders() {
                   <div>
                     <CardTitle>Order #{order.id}</CardTitle>
                     <CardDescription>
-                      {new Date(order.created_at).toLocaleDateString()}
+                      {formatDate(order.created_at)}
                     </CardDescription>
+                    {getStatusBadge(order.status)}
                   </div>
-                  {user?.role === 'MANAGER' ? (
-                    <Select
-                      value={order.status}
-                      onValueChange={(value) => handleStatusChange(order.id, value)}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder={order.status.charAt(0).toUpperCase() + order.status.slice(1)} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ORDER_STATUSES.map(status => (
-                          <SelectItem key={status} value={status}>
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge variant="secondary" className={getStatusColor(order.status)}>
-                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                    </Badge>
+                  {user?.role === 'MANAGER' && (
+                    <div className="flex gap-2">
+                      {order.status === 'pending' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-green-600 hover:text-green-700"
+                            onClick={() => handleAcceptOrder(order.id)}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Accept
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleRejectOrder(order.id)}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Reject
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-600 hover:text-gray-700"
+                            onClick={() => handleEditOrder(order.id)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
                 {(user?.role === 'MANAGER' || user?.role === 'EMPLOYEE') && order.user_details && (
@@ -321,7 +430,7 @@ export default function Orders() {
                                 {daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Payment Overdue'}
                               </p>
                               <p className="text-muted-foreground">
-                                Due by {dueDate.toLocaleDateString()}
+                                Due by {formatDate(dueDate.toISOString())}
                               </p>
                             </div>
                           );

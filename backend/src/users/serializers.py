@@ -34,4 +34,32 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ('id', 'username', 'email', 'role', 'phone', 'address')
-        read_only_fields = ('id',) 
+        read_only_fields = ('id',)
+
+class UserManagementSerializer(serializers.ModelSerializer):
+    registration_date = serializers.DateTimeField(source='created_at', read_only=True)
+    last_modified = serializers.DateTimeField(source='updated_at', read_only=True)
+    
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id', 'username', 'email', 'role', 'status',
+            'registration_date', 'last_modified', 'phone',
+            'address', 'is_active'
+        ]
+        read_only_fields = ['id', 'registration_date', 'last_modified']
+
+class UserStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['status']
+
+class UserRoleUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['role']
+
+    def validate_role(self, value):
+        if value not in [role[0] for role in CustomUser.ROLES]:
+            raise serializers.ValidationError(f"Invalid role. Must be one of: {', '.join([role[0] for role in CustomUser.ROLES])}")
+        return value 

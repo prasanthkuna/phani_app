@@ -24,10 +24,14 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '../components/ui/form';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { toast } from '../components/ui/use-toast';
+import axios from 'axios';
+import { ImageIcon } from 'lucide-react';
 
 interface Product {
   id: number;
@@ -35,6 +39,8 @@ interface Product {
   description: string;
   price: number;
   stock: number;
+  image_url?: string;
+  image?: string;
 }
 
 interface ProductQuantity {
@@ -43,10 +49,14 @@ interface ProductQuantity {
 
 const productSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  description: z.string(),
-  price: z.number().min(0, 'Price must be greater than or equal to 0'),
-  stock: z.number().min(0, 'Stock must be greater than or equal to 0'),
+  description: z.string().min(1, 'Description is required'),
+  price: z.string(),
+  stock: z.number().min(0, 'Stock must be non-negative'),
+  image_url: z.string().optional(),
+  image: z.any().optional(),
 });
+
+type ProductFormValues = z.infer<typeof productSchema>;
 
 export default function Products() {
   const { user } = useAuth();
@@ -57,15 +67,18 @@ export default function Products() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [quantities, setQuantities] = useState<ProductQuantity>({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  const form = useForm({
+  const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: '',
       description: '',
-      price: 0,
+      price: '',
       stock: 0,
-    },
+      image_url: '',
+      image: null
+    }
   });
 
   useEffect(() => {
@@ -77,8 +90,10 @@ export default function Products() {
       form.reset({
         name: editingProduct.name,
         description: editingProduct.description,
-        price: editingProduct.price,
+        price: editingProduct.price.toString(),
         stock: editingProduct.stock,
+        image_url: editingProduct.image_url || '',
+        image: null
       });
     }
   }, [editingProduct, form]);
@@ -95,20 +110,53 @@ export default function Products() {
     }
   };
 
-  const handleSubmit = async (data: z.infer<typeof productSchema>) => {
+  const handleSubmit = async (values: ProductFormValues) => {
     try {
-      if (editingProduct) {
-        await updateProduct(editingProduct.id, data);
-      } else {
-        await createProduct(data);
+      setIsLoading(true);
+      const formData = new FormData();
+      
+      // Handle basic fields
+      formData.append('name', values.name);
+      formData.append('description', values.description);
+      formData.append('price', values.price);
+      formData.append('stock', values.stock.toString());
+
+      // Handle image fields
+      if (values.image) {
+        formData.append('image', values.image);
       }
-      await fetchProducts();
-      setShowAddForm(false);
-      setEditingProduct(null);
-      form.reset();
-    } catch (err) {
-      setError('Failed to save product');
-      console.error(err);
+      
+      // Only append image_url if it's not empty
+      if (values.image_url && values.image_url.trim() !== '') {
+        formData.append('image_url', values.image_url);
+      }
+
+      let response;
+      if (editingProduct) {
+        response = await updateProduct(editingProduct.id, formData);
+      } else {
+        response = await createProduct(formData);
+      }
+
+      if (response.status === 200 || response.status === 201) {
+        toast({
+          title: `Product ${editingProduct ? 'updated' : 'created'} successfully`,
+          variant: 'success',
+        });
+        form.reset();
+        setEditingProduct(null);
+        setShowAddForm(false);
+        fetchProducts();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save product. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -180,12 +228,7 @@ export default function Products() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
-                <DialogDescription>
-                  {editingProduct 
-                    ? 'Edit the product details below'
-                    : 'Fill in the product details below'}
-                </DialogDescription>
+                <DialogTitle>{editingProduct ? 'Edit' : 'Add'} Product</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -223,12 +266,22 @@ export default function Products() {
                         <FormLabel>Price (₹)</FormLabel>
                         <FormControl>
                           <Input 
-                            type="number" 
-                            {...field} 
-                            onChange={e => field.onChange(parseFloat(e.target.value))}
+                            type="text"
+                            {...field}
+                            onChange={(e) => {
+                              let value = e.target.value;
+                              // Allow only numbers and one decimal point
+                              value = value.replace(/[^\d.]/g, '');
+                              // Prevent multiple decimal points
+                              const parts = value.split('.');
+                              if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
+                              // Limit decimal places to 2
+                              if (parts[1]) parts[1] = parts[1].slice(0, 2);
+                              value = parts.join('.');
+                              field.onChange(value);
+                            }}
                           />
                         </FormControl>
-                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -240,11 +293,59 @@ export default function Products() {
                         <FormLabel>Stock</FormLabel>
                         <FormControl>
                           <Input 
-                            type="number" 
+                            type="number"
                             {...field}
-                            onChange={e => field.onChange(parseInt(e.target.value))}
+                            onChange={e => field.onChange(Number(e.target.value))}
+                            value={field.value || ''}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="image"
+                    render={({ field: { value, onChange, ...field } }) => (
+                      <FormItem>
+                        <FormLabel>Product Image</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                onChange(file);
+                              }
+                            }}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Upload a product image (optional)
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="image_url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Image URL</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="url" 
+                            placeholder="https://example.com/image.jpg"
+                            {...field}
+                            value={field.value || ''}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Or provide an external image URL
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -264,74 +365,50 @@ export default function Products() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {products.map((product) => (
-          <Card key={product.id}>
-            <CardHeader>
-              <CardTitle>{product.name}</CardTitle>
-              <CardDescription>{product.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-lg font-bold">₹{product.price}</span>
-                <span className={`text-sm ${
-                  product.stock > 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
-                </span>
+          <Card key={product.id} className="flex flex-col h-full">
+            <CardHeader className="flex-none">
+              <div className="relative h-48">
+                {(product.image_url || product.image) ? (
+                  <img
+                    src={product.image_url || product.image}
+                    alt={product.name}
+                    className="w-full h-48 object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                )}
               </div>
-              {product.stock > 0 && (
-                <div className="flex items-center space-x-2 mb-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleQuantityChange(product.id, -1)}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-8 text-center">
-                    {quantities[product.id] || 1}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleQuantityChange(product.id, 1)}
-                    disabled={quantities[product.id] >= product.stock}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+              <CardTitle className="mt-2 text-lg">{product.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="flex-grow">
+              <p className="text-sm text-gray-600 line-clamp-2">{product.description}</p>
+              <div className="mt-4">
+                <p className="font-semibold">₹{Number(product.price).toFixed(2)}</p>
+                <p className="text-sm text-gray-500">Stock: {product.stock}</p>
+              </div>
             </CardContent>
-            <CardFooter className="flex justify-between">
+            <CardFooter className="flex-none space-x-2">
               <Button
-                onClick={() => handleAddToCart(product)}
-                disabled={product.stock === 0}
-                variant={product.stock > 0 ? "default" : "outline"}
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingProduct(product);
+                  setShowAddForm(true);
+                }}
               >
-                Add to Cart
+                Edit
               </Button>
-              {user?.role === 'MANAGER' && (
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      setEditingProduct(product);
-                      setShowAddForm(true);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => handleDelete(product.id)}
-                  >
-                    <Trash className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDelete(product.id)}
+              >
+                Delete
+              </Button>
             </CardFooter>
           </Card>
         ))}

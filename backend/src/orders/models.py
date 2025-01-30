@@ -8,10 +8,8 @@ from users.models import CustomUser
 class Order(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
-        ('processing', 'Processing'),
-        ('shipped', 'Shipped'),
-        ('delivered', 'Delivered'),
-        ('cancelled', 'Cancelled'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected')
     ]
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -32,12 +30,34 @@ class Order(models.Model):
     def __str__(self):
         return f"Order {self.id} by {self.user.username}"
 
+    def calculate_total(self):
+        total = sum(item.quantity * item.price for item in self.items.all())
+        self.total_amount = total
+        return total
+
+    def save(self, *args, **kwargs):
+        if self.pk:  # If order already exists
+            self.calculate_total()
+        super().save(*args, **kwargs)
+        if not self.pk:  # If this is a new order
+            self.calculate_total()
+            super().save(*args, **kwargs)
+
     def get_days_remaining(self):
         if self.status != 'pending':
             return 0
         deadline_date = self.created_at + timezone.timedelta(days=self.payment_deadline)
         remaining = deadline_date - timezone.now()
-        return max(0, remaining.days)
+        days = remaining.days
+        return days  # Can be negative for overdue payments
+
+    def accept_order(self):
+        self.status = 'accepted'
+        self.save()
+
+    def reject_order(self):
+        self.status = 'rejected'
+        self.save()
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name='items', on_delete=models.CASCADE)

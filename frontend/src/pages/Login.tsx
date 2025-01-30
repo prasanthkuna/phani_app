@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import AuthForm from '../components/auth/AuthForm'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
+import { Alert, AlertDescription } from '../components/ui/alert'
 
 export default function Login() {
   const [error, setError] = useState('')
@@ -19,13 +21,20 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-container">
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-      <AuthForm mode="login" onSubmit={handleSubmit} />
+    <div className="container mx-auto max-w-md py-12">
+      <Card>
+        <CardHeader>
+          <CardTitle>Login</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <AuthForm mode="login" onSubmit={handleSubmit} />
+        </CardContent>
+      </Card>
     </div>
   )
 } 

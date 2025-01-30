@@ -9,7 +9,10 @@ import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Orders from './pages/Orders'
 import Cart from './pages/Cart'
+import UserManagement from './pages/UserManagement'
 import ProtectedRoute from './components/ProtectedRoute'
+import { Toaster } from './components/ui/toaster'
+import EditOrder from './pages/EditOrder'
 
 function App() {
   return (
@@ -36,12 +39,23 @@ function App() {
                   <Orders />
                 </ProtectedRoute>
               } />
+              <Route path="/orders/:id/edit" element={
+                <ProtectedRoute>
+                  <EditOrder />
+                </ProtectedRoute>
+              } />
               <Route path="/cart" element={
                 <ProtectedRoute>
                   <Cart />
                 </ProtectedRoute>
               } />
+              <Route path="/users" element={
+                <ProtectedRoute>
+                  <UserManagement />
+                </ProtectedRoute>
+              } />
             </Routes>
+            <Toaster />
           </Layout>
         </CartProvider>
       </AuthProvider>

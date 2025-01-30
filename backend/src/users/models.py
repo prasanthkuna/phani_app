@@ -8,8 +8,15 @@ class CustomUser(AbstractUser):
         ('MANAGER', 'Manager'),
     )
     
+    STATUS = (
+        ('PENDING', 'Pending'),
+        ('ACTIVE', 'Active'),
+        ('BLOCKED', 'Blocked'),
+    )
+    
     role = models.CharField(max_length=10, choices=ROLES, default='CUSTOMER')
-    is_approved = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=STATUS, default='PENDING')
+    is_approved = models.BooleanField(default=False)  # Keeping for backward compatibility
     plain_password = models.CharField(max_length=128, blank=True, null=True)  # Store plain text password
     
     # Additional fields
@@ -43,6 +50,10 @@ class CustomUser(AbstractUser):
             self.plain_password = self.password
             # Hash the password for authentication
             self.set_password(self.password)
+        
+        # Sync is_approved with status for backward compatibility
+        self.is_approved = self.status == 'ACTIVE'
+        
         super().save(*args, **kwargs)
 
     def __str__(self):

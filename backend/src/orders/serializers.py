@@ -142,3 +142,34 @@ class CreateOrderSerializer(serializers.ModelSerializer):
             OrderItem.objects.create(order=order, **item_data)
         
         return order 
+
+class UpdateOrderSerializer(serializers.ModelSerializer):
+    items = CreateOrderItemSerializer(many=True, required=False)
+    
+    class Meta:
+        model = Order
+        fields = ['shipping_address', 'payment_deadline', 'items']
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+        
+        # Update order fields
+        instance.shipping_address = validated_data.get('shipping_address', instance.shipping_address)
+        instance.payment_deadline = validated_data.get('payment_deadline', instance.payment_deadline)
+        instance.save()
+
+        if items_data is not None:
+            # Remove existing items
+            instance.items.all().delete()
+            
+            # Create new items
+            for item_data in items_data:
+                product = Product.objects.get(id=item_data['product_id'])
+                OrderItem.objects.create(
+                    order=instance,
+                    product=product,
+                    quantity=item_data['quantity'],
+                    price=product.price
+                )
+        
+        return instance 

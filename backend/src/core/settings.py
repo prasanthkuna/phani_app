@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'django_filters',
     'users',
     'products',
     'orders',
@@ -172,4 +173,18 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_PRELOAD = True
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True 
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+# Media files (Uploaded files)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure the media directory exists
+MEDIA_ROOT_PATH = Path(MEDIA_ROOT)
+MEDIA_ROOT_PATH.mkdir(exist_ok=True)
+MEDIA_ROOT_PATH.joinpath('products').mkdir(exist_ok=True)
+
+# File Upload Settings
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+MAX_UPLOAD_SIZE = 5242880  # 5MB 
