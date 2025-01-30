@@ -45,19 +45,45 @@ class CustomUser(AbstractUser):
     )
 
     def save(self, *args, **kwargs):
-        if self.password and (not self.pk or self.password != CustomUser.objects.get(pk=self.pk).password if self.pk else None):
-            # Store plain text password
-            self.plain_password = self.password
-            # Hash the password for authentication
-            self.set_password(self.password)
-        
-        # Sync is_approved with status for backward compatibility
-        self.is_approved = self.status == 'ACTIVE'
-        
+        # Store plain password before hashing if it's being set
+        if 'password' in kwargs:
+            self.plain_password = kwargs['password']
+        elif hasattr(self, '_password'):
+            self.plain_password = self._password
+
         super().save(*args, **kwargs)
+
+    def set_password(self, raw_password):
+        self.plain_password = raw_password  # Store the plain password
+        super().set_password(raw_password)  # Hash the password
 
     def __str__(self):
         return self.username
 
     class Meta:
         ordering = ['-created_at']
+
+class EmployeeCustomerAssignment(models.Model):
+    employee = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='assigned_customers')
+    customer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='assigned_to_employee')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, related_name='customer_assignments')
+
+    class Meta:
+        unique_together = ('employee', 'customer')
+        ordering = ['-assigned_at']
+
+    def clean(self):
+        if self.employee.role != 'EMPLOYEE':
+            raise models.ValidationError("The employee user must have the role 'EMPLOYEE'")
+        if self.customer.role != 'CUSTOMER':
+            raise models.ValidationError("The customer user must have the role 'CUSTOMER'")
+        if self.assigned_by and self.assigned_by.role != 'MANAGER':
+            raise models.ValidationError("Only managers can assign customers to employees")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.customer.username} assigned to {self.employee.username}"

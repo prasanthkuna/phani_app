@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getOrders, updateOrderStatus, acceptOrder, rejectOrder } from '../services/api';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
+import { useCustomer } from '../contexts/CustomerContext';
+import { getOrders, acceptOrder, rejectOrder, updateOrderStatus } from '../services/api';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Skeleton } from '../components/ui/skeleton';
-import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import {
   Select,
   SelectContent,
@@ -14,145 +13,104 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { Separator } from '../components/ui/separator';
-import { Edit, Check, X } from 'lucide-react';
-import { toast } from '../components/ui/use-toast';
-import { useNavigate } from 'react-router-dom';
-
-interface OrderItem {
-  id: number;
-  product_detail: {
-    name: string;
-    price: number;
-  };
-  quantity: number;
-  price: number;
-}
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { useToast } from '../components/ui/use-toast';
+import { format } from 'date-fns';
 
 interface Order {
   id: number;
-  status: string;
-  total_amount: string | number;
-  created_at: string;
-  shipping_address: string;
-  payment_deadline: number;
-  items: OrderItem[];
-  user_details?: {
+  user: {
     id: number;
     username: string;
-    email: string;
-    role: string;
+    email?: string;
+  };
+  items: {
+    id: number;
+    product_detail: {
+      name: string;
+      price: number;
+    };
+    quantity: number;
+    price: number;
+  }[];
+  total_amount: number;
+  status: string;
+  shipping_address: string;
+  payment_deadline: string;
+  created_at: string;
+  days_remaining: number;
+  user_details?: {
     phone: string;
     address: string;
+    role: string;
   };
-  location_state?: string;
-  location_display_name?: string;
-  location_latitude?: number;
-  location_longitude?: number;
   created_by_role?: string;
+  location_display_name?: string;
+  location_state?: string;
 }
-
-interface FilterState {
-  status: string;
-  startDate: string;
-  endDate: string;
-  searchQuery: string;
-  paymentStatus: string;
-}
-
-const ORDER_STATUSES = ['pending', 'accepted', 'rejected'];
-const PAYMENT_STATUSES = ['all', 'overdue', 'due_soon'];
-const ALL_STATUSES = 'all';
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'accepted':
-      return 'bg-green-100 text-green-800 border-green-200';
-    case 'rejected':
-      return 'bg-red-100 text-red-800 border-red-200';
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-200';
-  }
-};
-
-// Format date to DD/MM/YYYY
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-};
 
 export default function Orders() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const { selectedCustomer } = useCustomer();
+  const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState<FilterState>({
-    status: '',
-    startDate: '',
-    endDate: '',
-    searchQuery: '',
-    paymentStatus: ''
+  const [filters, setFilters] = useState({
+    status: 'all_status',
+    search: ''
   });
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const debouncedFetch = useCallback(() => {
-    const params = new URLSearchParams();
-    
-    if (filters.status) {
-      params.append('status', filters.status);
-    }
-    if (filters.paymentStatus && filters.paymentStatus !== 'all') {
-      params.append('payment_status', filters.paymentStatus);
-    }
-    if (filters.startDate) {
-      params.append('start_date', filters.startDate);
-    }
-    if (filters.endDate) {
-      params.append('end_date', filters.endDate);
-    }
-    if (filters.searchQuery) {
-      params.append('search', filters.searchQuery);
-    }
-
-    const queryString = params.toString();
-    const url = queryString ? `?${queryString}` : '';
-
-    setLoading(true);
-    getOrders(url)
-      .then(response => {
-        setOrders(response.data);
-        setError('');
-      })
-      .catch(err => {
-        setError('Failed to fetch orders');
-        console.error(err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [filters]);
-
+  // Handle immediate filter changes
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      debouncedFetch();
-    }, 300);
+    fetchOrders();
+  }, [selectedCustomer, filters.status, debouncedSearch]); // Only fetch when these change
 
-    return () => clearTimeout(timeoutId);
-  }, [debouncedFetch]);
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(filters.search);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Pass filters to getOrders function
+      const response = await getOrders(selectedCustomer?.id, {
+        status: filters.status !== 'all_status' ? filters.status : undefined,
+        search: debouncedSearch || undefined
+      });
+      
+      setOrders(response.data);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError('Failed to fetch orders');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStatusChange = async (orderId: number, newStatus: string) => {
     try {
       await updateOrderStatus(orderId, newStatus);
-      debouncedFetch();
-    } catch (err) {
-      setError('Failed to update order status');
-      console.error(err);
+      toast({
+        title: 'Success',
+        description: `Order status updated to ${newStatus}`,
+      });
+      fetchOrders();
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update order status',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -160,13 +118,17 @@ export default function Orders() {
     try {
       await acceptOrder(orderId);
       toast({
-        title: "Success",
-        description: "Order accepted successfully"
+        title: 'Success',
+        description: 'Order accepted successfully',
       });
-      debouncedFetch();
-    } catch (err) {
-      setError('Failed to accept order');
-      console.error(err);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error accepting order:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to accept order',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -174,43 +136,53 @@ export default function Orders() {
     try {
       await rejectOrder(orderId);
       toast({
-        title: "Success",
-        description: "Order rejected successfully"
+        title: 'Success',
+        description: 'Order rejected successfully',
       });
-      debouncedFetch();
-    } catch (err) {
-      setError('Failed to reject order');
-      console.error(err);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error rejecting order:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reject order',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleEditOrder = (orderId: number) => {
-    navigate(`/orders/${orderId}/edit`);
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'secondary';
+      case 'accepted':
+        return 'default';
+      case 'rejected':
+        return 'destructive';
+      default:
+        return 'default';
+    }
   };
 
-  const getStatusBadge = (status: string) => {
-    const badgeClasses: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      accepted: 'bg-green-100 text-green-800 border-green-200',
-      rejected: 'bg-red-100 text-red-800 border-red-200'
-    };
-
-    return (
-      <Badge variant="secondary" className={badgeClasses[status] || 'bg-gray-100 text-gray-800'}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'text-yellow-600';
+      case 'accepted':
+        return 'text-green-600';
+      case 'rejected':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
+    }
   };
 
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <Skeleton className="h-8 w-48 mb-8" />
-        <Skeleton className="h-[100px] mb-6" />
         <div className="space-y-6">
-          <Skeleton className="h-[300px]" />
-          <Skeleton className="h-[300px]" />
-          <Skeleton className="h-[300px]" />
+          <Skeleton className="h-[200px]" />
+          <Skeleton className="h-[200px]" />
         </div>
       </div>
     );
@@ -226,224 +198,163 @@ export default function Orders() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Orders</h1>
-      
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            {(user?.role === 'MANAGER' || user?.role === 'EMPLOYEE') && (
-              <div className="w-full">
-                <Input
-                  type="text"
-                  placeholder="Search by customer name or product name..."
-                  value={filters.searchQuery}
-                  onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
-                  className="mt-1"
-                />
-              </div>
-            )}
-            
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Select
-                  value={filters.status || ALL_STATUSES}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === ALL_STATUSES ? '' : value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Order Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_STATUSES}>All Statuses</SelectItem>
-                    {ORDER_STATUSES.map(status => (
-                      <SelectItem key={status} value={status}>
-                        <div className="flex items-center">
-                          <Badge variant="secondary" className={getStatusColor(status)}>
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Select
-                  value={filters.paymentStatus || 'all'}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, paymentStatus: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Payment Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Payments</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="due_soon">Due Soon</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                  placeholder="Start Date"
-                />
-              </div>
-              <div>
-                <Input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                  placeholder="End Date"
-                />
-              </div>
+      <div className="flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Orders</h1>
+          {selectedCustomer && ['MANAGER', 'EMPLOYEE'].includes(user?.role?.toUpperCase() || '') && (
+            <div className="text-sm text-gray-500">
+              Showing orders for: {selectedCustomer.username}
+              {selectedCustomer.email && ` (${selectedCustomer.email})`}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
 
-      {orders.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-6 text-muted-foreground">
-            No orders found.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {orders.map((order) => (
-            <Card key={order.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle>Order #{order.id}</CardTitle>
-                    <CardDescription>
-                      {formatDate(order.created_at)}
-                    </CardDescription>
-                    {getStatusBadge(order.status)}
-                  </div>
-                  {user?.role === 'MANAGER' && (
-                    <div className="flex gap-2">
-                      {order.status === 'pending' && (
-                        <>
+        {/* Filters */}
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Search by address, username, email, or product..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            />
+          </div>
+          <Select
+            value={filters.status}
+            onValueChange={(value) => setFilters({ ...filters, status: value })}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all_status">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="accepted">Accepted</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {orders.length === 0 ? (
+          <Card>
+            <CardContent className="py-8">
+              <div className="text-center text-gray-500">
+                No orders found
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-6">
+            {orders.map((order) => (
+              <Card key={order.id} className={`border-l-4 ${
+                order.status.toLowerCase() === 'pending' ? 'border-l-yellow-500' :
+                order.status.toLowerCase() === 'accepted' ? 'border-l-green-500' :
+                order.status.toLowerCase() === 'rejected' ? 'border-l-red-500' :
+                'border-l-gray-500'
+              }`}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        Order #{order.id}
+                        <Badge variant={getStatusBadgeVariant(order.status)}>
+                          <span className={getStatusColor(order.status)}>
+                            {order.status.toUpperCase()}
+                          </span>
+                        </Badge>
+                      </CardTitle>
+                      <div className="text-sm text-gray-500 mt-2 space-y-1">
+                        <div className="font-medium">Customer Details:</div>
+                        <div className="font-semibold text-gray-700">Customer: {order.user.username}</div>
+                        {order.user.email && (
+                          <div className="text-gray-600">Email: {order.user.email}</div>
+                        )}
+                        {order.user_details && (
+                          <>
+                            <div>Role: {order.user_details.role}</div>
+                            <div>Phone: {order.user_details.phone || 'N/A'}</div>
+                            <div>Address: {order.user_details.address || 'N/A'}</div>
+                          </>
+                        )}
+                        {order.created_by_role && order.created_by_role !== order.user_details?.role && (
+                          <div className="text-blue-600 mt-1">
+                            Order placed by: {order.created_by_role.toLowerCase()}
+                          </div>
+                        )}
+                        {order.location_display_name && (
+                          <div className="mt-1">Location: {order.location_display_name}</div>
+                        )}
+                        {order.location_state && (
+                          <div>State: {order.location_state}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold text-lg">
+                        Total: ${Number(order.total_amount).toFixed(2)}
+                      </div>
+                      {user?.role === 'MANAGER' && order.status.toLowerCase() === 'pending' && (
+                        <div className="flex gap-2 mt-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-green-600 hover:text-green-700"
                             onClick={() => handleAcceptOrder(order.id)}
+                            className="border-green-500 hover:bg-green-50"
                           >
-                            <Check className="h-4 w-4 mr-1" />
                             Accept
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-red-600 hover:text-red-700"
                             onClick={() => handleRejectOrder(order.id)}
+                            className="border-red-500 hover:bg-red-50"
                           >
-                            <X className="h-4 w-4 mr-1" />
                             Reject
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-gray-600 hover:text-gray-700"
-                            onClick={() => handleEditOrder(order.id)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </>
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-                {(user?.role === 'MANAGER' || user?.role === 'EMPLOYEE') && order.user_details && (
-                  <div className="mt-4 space-y-1 text-sm">
-                    <p className="font-medium">Customer Details:</p>
-                    <p>Username: {order.user_details.username}</p>
-                    <p>Email: {order.user_details.email}</p>
-                    <p>Phone: {order.user_details.phone || 'N/A'}</p>
                   </div>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center">
-                      <div>
-                        <p className="font-medium">{item.product_detail.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Quantity: {item.quantity} × ₹{item.price}
-                        </p>
-                      </div>
-                      <p className="font-medium">
-                        ₹{(item.quantity * item.price).toFixed(2)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-              <Separator />
-              <CardFooter className="mt-4">
-                <div className="flex justify-between items-start w-full">
+                </CardHeader>
+                <CardContent>
                   <div className="space-y-4">
                     <div>
-                      <p className="font-medium mb-1">Shipping Address:</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">
-                        {order.shipping_address}
-                      </p>
+                      <h3 className="font-medium mb-2">Items:</h3>
+                      <div className="space-y-2">
+                        {order.items.map((item) => (
+                          <div key={item.id} className="flex justify-between text-sm">
+                            <span>{item.product_detail.name} × {item.quantity}</span>
+                            <span>${(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    {user?.role === 'MANAGER' && order.created_by_role !== 'CUSTOMER' && (
-                      <div>
-                        <p className="font-medium mb-1">Location Details:</p>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <p>State: {order.location_state}</p>
-                          <p className="whitespace-pre-line">Full Address: {order.location_display_name}</p>
-                          <p className="text-xs">
-                            Coordinates: {order.location_latitude ? Number(order.location_latitude).toFixed(5) : 'N/A'}, {order.location_longitude ? Number(order.location_longitude).toFixed(5) : 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <div>
+                      <h3 className="font-medium mb-1">Shipping Address:</h3>
+                      <p className="text-sm text-gray-600">{order.shipping_address}</p>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>
+                        Payment Deadline: {format(new Date(order.payment_deadline), 'MMM d, yyyy')}
+                        {order.status.toLowerCase() === 'pending' && order.days_remaining > 0 && (
+                          <span className="ml-2 text-green-600">
+                            ({order.days_remaining} days remaining)
+                          </span>
+                        )}
+                        {order.status.toLowerCase() === 'pending' && order.days_remaining <= 0 && (
+                          <span className="ml-2 text-red-600">
+                            (Overdue)
+                          </span>
+                        )}
+                      </span>
+                      <span>Ordered on: {format(new Date(order.created_at), 'MMM d, yyyy')}</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Total Amount</p>
-                    <p className="text-xl font-bold">
-                      ₹{Number(order.total_amount).toFixed(2)}
-                    </p>
-                    {order.payment_deadline && (
-                      <div className="mt-2">
-                        <p className="text-sm text-muted-foreground">Payment Due</p>
-                        {(() => {
-                          const createdDate = new Date(order.created_at);
-                          const dueDate = new Date(createdDate);
-                          dueDate.setDate(dueDate.getDate() + order.payment_deadline);
-                          const today = new Date();
-                          const daysRemaining = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                          
-                          return (
-                            <div className="text-sm">
-                              <p className={`font-medium ${
-                                daysRemaining > 3 ? 'text-green-600' : 
-                                daysRemaining > 0 ? 'text-yellow-600' : 
-                                'text-red-600'
-                              }`}>
-                                {daysRemaining > 0 ? `${daysRemaining} days remaining` : 'Payment Overdue'}
-                              </p>
-                              <p className="text-muted-foreground">
-                                Due by {formatDate(dueDate.toISOString())}
-                              </p>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

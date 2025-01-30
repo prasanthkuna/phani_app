@@ -19,8 +19,25 @@ const api = axios.create({
   }
 });
 
-// Function to get CSRF token
-const getCSRFToken = async () => {
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: any) => void;
+}> = [];
+
+const processQueue = (error: any = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+// Auth endpoints and functions
+export const getCSRFToken = async () => {
   try {
     await csrfAxios.get('/auth/csrf/');
     // Wait to ensure cookie is set
@@ -43,32 +60,8 @@ const getCSRFToken = async () => {
   }
 };
 
-// Function to check if session is valid
-const checkSession = async () => {
-  try {
-    await api.get('/auth/session/');
-    return true;
-  } catch (error) {
-    return false;
-  }
-};
-
-let isRefreshing = false;
-let failedQueue: Array<{
-  resolve: (value?: unknown) => void;
-  reject: (reason?: any) => void;
-}> = [];
-
-const processQueue = (error: any = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve();
-    }
-  });
-  failedQueue = [];
-};
+// Session management
+export const checkSession = () => api.get('/auth/session/');
 
 // Add request interceptor to handle CSRF token and session
 api.interceptors.request.use(
@@ -108,6 +101,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Don't retry if it's already a retry or if it's a 401 (Unauthorized)
+    if (error.response?.status === 401) {
+      // Clear any stored auth data
+      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+
+    // Handle 403 errors (CSRF token issues or permission issues)
     if (error.response?.status === 403 && !originalRequest._retry) {
       if (isRefreshing) {
         // If another request is already refreshing, add this request to queue
@@ -122,24 +123,27 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Check if session is still valid
-        const isSessionValid = await checkSession();
+        // First try to refresh CSRF token
+        await getCSRFToken();
         
-        if (!isSessionValid) {
-          // Only redirect to login if we're not already there
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
-          }
+        try {
+          // Then check if session is still valid
+          await checkSession();
+          // If we get here, session is valid
+          processQueue();
+          return api(originalRequest);
+        } catch (sessionError) {
+          // Session is invalid
           processQueue(error);
+          window.location.href = '/login';
           return Promise.reject(error);
         }
-
-        // If session is valid but we got a 403, try to refresh CSRF token
-        await getCSRFToken();
-        processQueue();
-        return api(originalRequest);
       } catch (refreshError) {
+        // If both CSRF refresh and session check fail, redirect to login
         processQueue(refreshError);
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -151,6 +155,19 @@ api.interceptors.response.use(
 );
 
 // Auth endpoints
+export const register = async (data: {
+  username: string;
+  email?: string;
+  password: string;
+  password2: string;
+  role: string;
+}) => {
+  // First, get CSRF token
+  await getCSRFToken();
+  // Then make registration request
+  return api.post('/auth/register/', data);
+};
+
 export const login = async (username: string, password: string) => {
   // First, get CSRF token
   await getCSRFToken();
@@ -159,7 +176,6 @@ export const login = async (username: string, password: string) => {
 };
 
 export const logout = () => api.post('/auth/logout/');
-export const checkAuth = () => api.get('/auth/session/');
 
 // Product endpoints
 export const getProducts = () => api.get('/products/');
@@ -185,9 +201,15 @@ export const getLowStockProducts = () => api.get('/products/low_stock/');
 export const getProductStats = () => api.get('/products/stats/');
 
 // Order endpoints
-export const getOrders = (queryString: string = '') => {
-  // Keep the search parameter as is - no need to split it
-  return api.get(`/orders/${queryString}`);
+export const getOrders = (userId?: number, filters?: { status?: string; search?: string }) => {
+  const params = new URLSearchParams();
+  
+  if (userId) params.append('user_id', userId.toString());
+  if (filters?.status && filters.status !== 'all_status') params.append('status', filters.status);
+  if (filters?.search) params.append('search', filters.search);
+  
+  const queryString = params.toString();
+  return api.get(`/orders/${queryString ? `?${queryString}` : ''}`);
 };
 
 export const getOrder = (id: number) => api.get(`/orders/${id}/`);
@@ -261,19 +283,40 @@ export const getUsers = async (queryParams: string = '') => {
   return api.get(`/admin/manage/${queryParams ? `?${queryParams}` : ''}`);
 };
 
-export const getCustomers = () => api.get('/users/?role=CUSTOMER');
+export const getCustomers = () => api.get('/users/get_customers/');
 export const approveUser = (id: number) => api.patch(`/admin/manage/${id}/update_status/`, { status: 'ACTIVE' });
 export const updateUserRole = async (userId: number, role: string) => {
   return api.patch(`/admin/manage/${userId}/update_role/`, { role });
 };
-export const resetUserPassword = async (userId: number) => {
-  return api.post(`/admin/manage/${userId}/reset_password/`);
+export const resetUserPassword = async (userId: number, newPassword: string) => {
+  return api.post(`/admin/manage/${userId}/reset_password/`, { new_password: newPassword });
 };
 export const getUserStats = () => api.get('/users/stats/');
 
 // User Management
 export const updateUserStatus = async (userId: number, status: string) => {
   return api.patch(`/admin/manage/${userId}/update_status/`, { status });
+};
+
+// Employee-Customer Assignment endpoints
+export const assignCustomersToEmployee = async (employeeId: number, customerIds: number[]) => {
+  return api.post(`/admin/manage/${employeeId}/assign_customers/`, { customer_ids: customerIds });
+};
+
+export const getEmployeeCustomers = async (employeeId: number) => {
+  return api.get(`/admin/manage/${employeeId}/get_employee_customers/`);
+};
+
+export const getUnassignedCustomers = async () => {
+  return api.get('/admin/manage/unassigned_customers/');
+};
+
+export const unassignCustomerFromEmployee = async (employeeId: number, customerId: number) => {
+  return api.post(`/admin/manage/${employeeId}/unassign_customer/`, { customer_id: customerId });
+};
+
+export const getCustomerAssignments = async (customerId: number) => {
+  return api.get(`/admin/manage/${customerId}/get_customer_assignments/`);
 };
 
 // Cart endpoints

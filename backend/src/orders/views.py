@@ -9,6 +9,7 @@ from products.models import Product
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from users.admin_views import IsManagerPermission
+from users.models import EmployeeCustomerAssignment
 
 User = get_user_model()
 
@@ -24,47 +25,44 @@ class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.prefetch_related('items', 'items__product')
     
     def get_queryset(self):
+        queryset = super().get_queryset()
         user = self.request.user
-        queryset = Order.objects.all() if user.role == 'MANAGER' else Order.objects.filter(user=user)
-        
-        # Get filter parameters
-        search_query = self.request.query_params.get('search', '')
-        status_filter = self.request.query_params.get('status', '')
-        payment_filter = self.request.query_params.get('payment_status', '')
-        
+        status = self.request.query_params.get('status')
+        user_id = self.request.query_params.get('user_id')
+
         # Apply status filter if provided
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        # Apply payment status filter
-        if payment_filter == 'overdue':
-            from django.utils import timezone
-            from datetime import timedelta
-            deadline_threshold = timezone.now() - timedelta(days=1)  # At least 1 day overdue
-            queryset = queryset.filter(
-                status='pending',
-                created_at__lte=deadline_threshold - timedelta(days=7)  # Default payment_deadline
-            )
-        elif payment_filter == 'due_soon':
-            from django.utils import timezone
-            from datetime import timedelta
-            now = timezone.now()
-            deadline_threshold = now - timedelta(days=4)  # 3 days remaining
-            queryset = queryset.filter(
-                status='pending',
-                created_at__gte=deadline_threshold - timedelta(days=7),  # Default payment_deadline
-                created_at__lte=now - timedelta(days=1)  # At least 1 day remaining
-            )
-        
-        # Apply OR filter if search is provided
-        if search_query:
-            queryset = queryset.filter(
-                Q(user__username__icontains=search_query) |
-                Q(user__email__icontains=search_query) |
-                Q(items__product__name__icontains=search_query)
-            ).distinct()
-        
-        return queryset.prefetch_related('items', 'items__product', 'user')
+        if status:
+            queryset = queryset.filter(status__iexact=status)
+
+        # Apply user_id filter if provided (for managers and employees)
+        if user_id and user.role in ['MANAGER', 'EMPLOYEE']:
+            try:
+                target_user = User.objects.get(id=user_id)
+                # For employees, verify they are assigned to this customer
+                if user.role == 'EMPLOYEE':
+                    is_assigned = EmployeeCustomerAssignment.objects.filter(
+                        employee=user,
+                        customer=target_user
+                    ).exists()
+                    if not is_assigned:
+                        return Order.objects.none()
+                queryset = queryset.filter(user=target_user)
+            except User.DoesNotExist:
+                return Order.objects.none()
+
+        # Apply role-based filtering
+        if user.role == 'MANAGER':
+            return queryset
+        elif user.role == 'EMPLOYEE':
+            if not user_id:  # Only apply if not already filtered by user_id
+                assigned_customers = EmployeeCustomerAssignment.objects.filter(
+                    employee=user
+                ).values_list('customer_id', flat=True)
+                queryset = queryset.filter(user_id__in=assigned_customers)
+            return queryset
+        else:
+            # Customers can only see their own orders
+            return queryset.filter(user=user)
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -85,9 +83,49 @@ class OrderViewSet(viewsets.ModelViewSet):
         )
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        # Get the target user for the order
+        user_id = request.data.get('user_id')
+        target_user = None
+
+        if user_id:
+            # If user_id is provided, verify permissions
+            if request.user.role not in ['MANAGER', 'EMPLOYEE']:
+                return Response(
+                    {"detail": "Only managers and employees can create orders for other users"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            try:
+                target_user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                return Response(
+                    {"detail": "Specified user does not exist"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # If employee, check if they are assigned to this customer
+            if request.user.role == 'EMPLOYEE':
+                is_assigned = EmployeeCustomerAssignment.objects.filter(
+                    employee=request.user,
+                    customer=target_user
+                ).exists()
+                
+                if not is_assigned:
+                    return Response(
+                        {"detail": "You are not assigned to this customer"},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+        else:
+            # If no user_id, the order is for the current user
+            target_user = request.user
+
+        # Add the target user to the data
+        mutable_data = request.data.copy()
+        mutable_data['user'] = target_user.id
+        
+        serializer = self.get_serializer(data=mutable_data)
         serializer.is_valid(raise_exception=True)
-        order = serializer.save()
+        order = serializer.save(created_by_role=request.user.role)
         
         # Use OrderSerializer to return full order details with context
         response_serializer = OrderSerializer(order, context={'request': request})

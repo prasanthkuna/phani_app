@@ -26,6 +26,38 @@ def csrf_token(request):
     """
     return Response({'detail': 'CSRF cookie set'})
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def session_check(request):
+    """
+    This endpoint is used to check if the user's session is still valid.
+    """
+    return Response({
+        'isValid': True,
+        'user': {
+            'id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+            'role': request.user.role
+        }
+    })
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@ensure_csrf_cookie
+def register_view(request):
+    """
+    Registration view that creates a new user
+    """
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response({
+            'detail': 'Account created successfully. You can login once your account is approved by an administrator.',
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @ensure_csrf_cookie
@@ -66,12 +98,15 @@ def login_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@csrf_protect
+@ensure_csrf_cookie
 def logout_view(request):
+    """
+    Logout view that handles user logout
+    """
     logout(request)
     return Response({'detail': 'Successfully logged out'})
 
-@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
     
@@ -95,6 +130,35 @@ class UserViewSet(viewsets.ModelViewSet):
                 'user': response.data
             }, status=status.HTTP_201_CREATED)
         return response
+
+    @action(detail=False, methods=['get'])
+    def get_customers(self, request):
+        """Get customers based on user role"""
+        user = request.user
+        
+        # Base queryset for active and approved customers
+        queryset = CustomUser.objects.filter(
+            role='CUSTOMER',
+            is_active=True,
+            is_approved=True
+        )
+        
+        # If user is employee, only return their assigned customers
+        if user.role == 'EMPLOYEE':
+            from .models import EmployeeCustomerAssignment
+            assigned_customer_ids = EmployeeCustomerAssignment.objects.filter(
+                employee=user
+            ).values_list('customer_id', flat=True)
+            queryset = queryset.filter(id__in=assigned_customer_ids)
+        # For managers, return all customers
+        elif user.role != 'MANAGER':
+            return Response(
+                {"detail": "You do not have permission to view customers."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = UserUpdateSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):

@@ -13,6 +13,11 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*'] if DEBUG else os.environ.get('ALLOWED_HOSTS', 'localhost 127.0.0.1').split(' ')
 
+# Session Settings
+SESSION_COOKIE_AGE = 28800  # 8 hours in seconds
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -133,14 +138,14 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Cookie Settings
 if DEBUG:
-    CSRF_COOKIE_SAMESITE = None  # Changed from 'Lax' to None for development
-    SESSION_COOKIE_SAMESITE = None  # Changed from 'Lax' to None for development
-    CSRF_COOKIE_HTTPONLY = False
+    CSRF_COOKIE_SAMESITE = 'Lax'  # Changed back to Lax for better security
+    SESSION_COOKIE_SAMESITE = 'Lax'  # Changed back to Lax for better security
+    CSRF_COOKIE_HTTPONLY = False  # Keep False to allow JavaScript access
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_SECURE = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_DOMAIN = None
-    CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+    CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000']
 else:
     CSRF_COOKIE_SAMESITE = 'Strict'
     SESSION_COOKIE_SAMESITE = 'Strict'

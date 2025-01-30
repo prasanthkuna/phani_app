@@ -1,13 +1,13 @@
 export interface User {
   id: number;
   username: string;
-  email: string | null;
+  email?: string;
   role: 'CUSTOMER' | 'EMPLOYEE' | 'MANAGER';
   status: 'PENDING' | 'ACTIVE' | 'BLOCKED';
+  phone?: string;
+  address?: string;
   registration_date: string;
-  last_modified: string;
-  phone: string;
-  address: string;
+  plain_password?: string;
   is_active: boolean;
 }
 

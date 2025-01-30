@@ -1,5 +1,5 @@
 # Cursor Rules for Phani React Project
-
+- check existing implementations first , alalyze clearly and do the changes
 ## Command Generation Rules
 - Use semicolon (;) for command chaining instead of &&
 - Always use relative paths from workspace root

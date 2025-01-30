@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from users.views import UserViewSet, login_view, logout_view, csrf_token
+from users.views import UserViewSet, login_view, logout_view, csrf_token, register_view, session_check
 from users.admin_views import UserManagementViewSet
 from django.conf import settings
 from django.conf.urls.static import static
@@ -27,11 +27,18 @@ from django.views.static import serve
 admin_router = DefaultRouter()
 admin_router.register(r'manage', UserManagementViewSet)
 
+# Create a router for user endpoints
+user_router = DefaultRouter()
+user_router.register(r'users', UserViewSet)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/csrf/', csrf_token),
+    path('api/auth/register/', register_view),
     path('api/auth/login/', login_view),
     path('api/auth/logout/', logout_view),
+    path('api/auth/session/', session_check),
+    path('api/', include(user_router.urls)),
     path('api/admin/', include(admin_router.urls)),  # Changed from api/users/ to api/admin/
     path('api/products/', include('products.urls')),
     path('api/orders/', include('orders.urls')),

@@ -8,13 +8,20 @@ import { Alert, AlertDescription } from '../components/ui/alert'
 export default function Login() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { login, user } = useAuth()
 
   const handleSubmit = async (data: any) => {
     setError('')
     try {
       await login(data.username, data.password)
-      navigate('/dashboard')
+      // After login, user state will be updated
+      if (user?.role === 'employee') {
+        navigate('/products')
+      } else if (user?.role === 'manager') {
+        navigate('/dashboard')
+      } else {
+        navigate('/')
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to login. Please check your credentials.')
     }
