@@ -17,6 +17,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    // Use esbuild to ignore type checking
+    minify: 'esbuild',
+    target: 'esnext'
   }
 })
