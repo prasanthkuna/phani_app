@@ -2,8 +2,18 @@
 
 echo "Fixing backend setup..."
 
-# Navigate to the backend directory
-cd /home/ubuntu/app/backend
+# Debug: Print current directory
+pwd
+echo "Listing directory contents:"
+ls -la /home/ubuntu/app
+
+# Navigate to the correct directory (note: phani_app is the actual directory name)
+cd /home/ubuntu/app/phani_app/backend
+
+# Debug: Print current directory after cd
+pwd
+echo "Listing backend directory contents:"
+ls -la
 
 # Activate virtual environment
 source venv/bin/activate
@@ -12,11 +22,17 @@ source venv/bin/activate
 sudo mkdir -p src/staticfiles
 sudo mkdir -p src/media
 
-# Set correct permissions
+# Set correct permissions for all backend directories
+sudo chown -R ubuntu:www-data .
+sudo chmod -R 755 .
 sudo chown -R ubuntu:www-data src/staticfiles
 sudo chown -R ubuntu:www-data src/media
 sudo chmod -R 755 src/staticfiles
 sudo chmod -R 755 src/media
+
+# Debug: Check manage.py location and permissions
+echo "Checking manage.py:"
+ls -la src/manage.py
 
 # Collect static files
 python src/manage.py collectstatic --noinput --clear
@@ -32,6 +48,9 @@ DB_PASSWORD=phani5678
 DB_HOST=localhost
 DB_PORT=5432
 EOF
+
+# Set proper permissions for .env file
+chmod 600 src/.env
 
 # Restart Gunicorn
 sudo systemctl restart gunicorn
