@@ -5,10 +5,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@': '/src',
-      'lib': '/src/lib'
-    }
+    alias: [
+      { find: '@', replacement: '/src' }
+    ]
   },
   server: {
     host: true,
@@ -23,9 +22,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    chunkSizeWarningLimit: 1000,
-    // Use esbuild to ignore type checking
-    minify: 'esbuild',
-    target: 'esnext'
+    chunkSizeWarningLimit: 1000
   }
 })
