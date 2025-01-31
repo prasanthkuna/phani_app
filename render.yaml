@@ -1,13 +1,15 @@
 services:
   - type: web
-    name: phani-react-backend
+    name: venkata-srinivas-agencies-be
     env: python
     buildCommand: "./backend/build.sh"
     startCommand: "cd backend/src && gunicorn backend.wsgi:application"
+    autoDeploy: true
+    branch: main
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: phani-react-db
+          name: venkata-srinivas-agencies-db
           property: connectionString
       - key: DJANGO_SECRET_KEY
         generateValue: true
@@ -17,16 +19,18 @@ services:
         value: ".onrender.com"
 
   - type: web
-    name: phani-react-frontend
+    name: venkata-srinivas-agencies
     env: node
     buildCommand: "cd frontend && npm install && npm run build"
     startCommand: "cd frontend && npm run preview"
+    autoDeploy: true
+    branch: main
     envVars:
       - key: VITE_API_URL
-        value: "https://phani-react-backend.onrender.com"
+        value: "https://venkata-srinivas-agencies-be.onrender.com"
 
 databases:
-  - name: phani-react-db
-    databaseName: phani_react
-    user: phani_react
+  - name: venkata-srinivas-agencies-db
+    databaseName: venkata_srinivas_agencies
+    user: venkata_srinivas_agencies
     plan: free 
