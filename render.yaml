@@ -2,6 +2,7 @@ services:
   - type: web
     name: venkata-srinivas-agencies-be
     env: python
+    runtime: python3.10
     buildCommand: "./backend/build.sh"
     startCommand: "cd backend/src && gunicorn backend.wsgi:application"
     autoDeploy: true
@@ -21,6 +22,7 @@ services:
   - type: web
     name: venkata-srinivas-agencies
     env: node
+    runtime: node
     buildCommand: "cd frontend && npm install && npm run build"
     startCommand: "cd frontend && npm run preview"
     autoDeploy: true
