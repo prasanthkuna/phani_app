@@ -11,7 +11,7 @@ class Command(BaseCommand):
             User.objects.create_superuser(
                 username='admin',
                 email='admin@example.com',
-                password='Admin@123',
+                password='Phani@123',
                 role='MANAGER',
                 is_approved=True
             )
