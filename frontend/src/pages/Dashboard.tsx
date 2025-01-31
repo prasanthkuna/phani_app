@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { getProductStats, getLowStockProducts, getUsers, getOrders } from '../services/api'
+import { getProductStats, getLowStockProducts, getUserStats, getOrders } from '../services/api'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Alert, AlertDescription } from '../components/ui/alert'
+import { Skeleton } from '../components/ui/skeleton'
 
 interface OrderSummary {
   total: number
@@ -69,13 +72,11 @@ export default function Dashboard() {
       // Only fetch user stats for managers
       if (user.role === 'MANAGER') {
         try {
-          const usersResponse = await getUsers()
-          const users = usersResponse.data
-          const userSummary = {
-            total: users.length,
-            pending_approval: users.filter((user: any) => !user.is_approved).length
-          }
-          setUserSummary(userSummary)
+          const userStatsResponse = await getUserStats()
+          setUserSummary({
+            total: userStatsResponse.data.total_users,
+            pending_approval: userStatsResponse.data.pending_approval
+          })
         } catch (err) {
           console.error('Error fetching user stats:', err)
           // Don't set error state here as this is optional for managers
@@ -90,15 +91,32 @@ export default function Dashboard() {
   }
 
   if (!user) {
-    return <div className="text-center p-4">Please log in to view the dashboard.</div>
+    return (
+      <Alert>
+        <AlertDescription>Please log in to view the dashboard.</AlertDescription>
+      </Alert>
+    )
   }
 
   if (loading) {
-    return <div className="text-center p-4">Loading dashboard...</div>
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Skeleton className="h-8 w-48 mb-8" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-[200px]" />
+          <Skeleton className="h-[200px]" />
+          <Skeleton className="h-[200px]" />
+        </div>
+      </div>
+    )
   }
 
   if (error) {
-    return <div className="text-red-500 text-center p-4">{error}</div>
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    )
   }
 
   return (
@@ -108,37 +126,70 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Orders Summary */}
         {orderSummary && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Orders</h2>
-            <div className="space-y-2">
-              <p>Total Orders: {orderSummary.count}</p>
-              <p>Pending Orders: {orderSummary.pending}</p>
-              <p>Total Revenue: ${Number(orderSummary.total).toFixed(2)}</p>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Orders</CardTitle>
+              <CardDescription>Overview of order statistics</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between">
+                <span>Total Orders:</span>
+                <span className="font-medium">{orderSummary.count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pending Orders:</span>
+                <span className="font-medium">{orderSummary.pending}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Revenue:</span>
+                <span className="font-medium">${Number(orderSummary.total).toFixed(2)}</span>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Product Summary - Only for managers and employees */}
         {productSummary && ['MANAGER', 'EMPLOYEE'].includes(user.role) && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Products</h2>
-            <div className="space-y-2">
-              <p>Total Products: {productSummary.total_products}</p>
-              <p>Low Stock Products: {productSummary.low_stock_products}</p>
-              <p>Out of Stock: {productSummary.out_of_stock}</p>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Products</CardTitle>
+              <CardDescription>Overview of product statistics</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between">
+                <span>Total Products:</span>
+                <span className="font-medium">{productSummary.total_products}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Low Stock Products:</span>
+                <span className="font-medium">{productSummary.low_stock_products}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Out of Stock:</span>
+                <span className="font-medium">{productSummary.out_of_stock}</span>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* User Summary - Only for managers */}
         {userSummary && user.role === 'MANAGER' && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Users</h2>
-            <div className="space-y-2">
-              <p>Total Users: {userSummary.total}</p>
-              <p>Pending Approval: {userSummary.pending_approval}</p>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Users</CardTitle>
+              <CardDescription>Overview of user statistics</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex justify-between">
+                <span>Total Users:</span>
+                <span className="font-medium">{userSummary.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pending Approval:</span>
+                <span className="font-medium">{userSummary.pending_approval}</span>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

@@ -1,0 +1,69 @@
+# Cursor Rules for Phani React Project
+- check existing implementations first , alalyze clearly and do the changes
+## Command Generation Rules
+- Use semicolon (;) for command chaining instead of &&
+- Always use relative paths from workspace root
+- Use powershell commands for Windows compatibility
+
+## Project Context
+### Backend (Django)
+- Uses custom user model (CustomUser) with roles:
+  - CUSTOMER
+  - EMPLOYEE
+  - MANAGER
+- Location fields format:
+  - latitude/longitude: DecimalField(max_digits=9, decimal_places=6)
+  - Required for employee/manager orders only
+- Order model includes:
+  - Payment deadline (1-30 days)
+  - Location tracking
+  - Created by role tracking
+  - User details (visible to managers/employees only)
+
+### Frontend (React + TypeScript)
+- Uses shadcn/ui components
+- Role-based access control via AuthContext
+- Location handling:
+  - Coordinates must be formatted to 5 decimal places
+  - Convert Django Decimal strings to numbers before formatting
+- Date handling:
+  - Backend sends ISO format dates
+  - Frontend displays localized dates
+
+## API Endpoints Context
+- Orders:
+  - GET /api/orders/ - List orders (supports filtering)
+  - POST /api/orders/ - Create order
+  - PATCH /api/orders/{id}/status/ - Update order status
+- Location:
+  - Requires lat/lon with max 9 digits total
+  - Returns state and display_name
+
+## Development Environment
+- OS: Windows 10 (22631)
+- Shell: PowerShell
+- Workspace: /c%3A/Users/kunap/samples/phani_react
+
+## Common Operations
+- Creating migrations:
+  cd backend/src; python manage.py makemigrations
+- Applying migrations:
+  cd backend/src; python manage.py migrate
+- Running backend:
+  cd backend/src; python manage.py runserver
+- Running frontend:
+  cd frontend; npm run dev
+
+## Project Structure
+- backend/
+  - src/
+    - orders/
+    - users/
+    - products/
+- frontend/
+  - src/
+    - components/
+    - contexts/
+    - pages/
+    - services/
+    - types/ 

@@ -31,8 +31,12 @@ class OrderSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Order
-        fields = ['id', 'user', 'user_details', 'username', 'status', 'total_amount', 
-                 'shipping_address', 'created_at', 'updated_at', 'items', 'payment_deadline', 'days_remaining']
+        fields = [
+            'id', 'user', 'user_details', 'username', 'status', 'total_amount', 
+            'shipping_address', 'created_at', 'updated_at', 'items', 'payment_deadline', 
+            'days_remaining', 'created_by_role', 'location_state', 'location_display_name',
+            'location_latitude', 'location_longitude'
+        ]
         read_only_fields = ['user', 'total_amount', 'created_at', 'updated_at']
     
     def get_user_details(self, obj):
@@ -58,13 +62,21 @@ class CreateOrderItemSerializer(serializers.ModelSerializer):
         fields = ['product_id', 'quantity']
 
 class CreateOrderSerializer(serializers.ModelSerializer):
-    items = CreateOrderItemSerializer(many=True)
-    user_id = serializers.IntegerField(required=False, allow_null=True)
+    items = OrderItemSerializer(many=True)
+    user_id = serializers.IntegerField(required=False)  # Optional, for managers creating orders for customers
+    location_state = serializers.CharField(required=False, allow_blank=True)
+    location_display_name = serializers.CharField(required=False, allow_blank=True)
+    location_latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    location_longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     payment_deadline = serializers.IntegerField(min_value=1, max_value=30, default=7)
     
     class Meta:
         model = Order
-        fields = ['shipping_address', 'items', 'user_id', 'payment_deadline']
+        fields = [
+            'shipping_address', 'payment_deadline', 'items', 'user_id',
+            'location_state', 'location_display_name',
+            'location_latitude', 'location_longitude'
+        ]
 
     def validate(self, data):
         if not data.get('items'):
@@ -73,6 +85,19 @@ class CreateOrderSerializer(serializers.ModelSerializer):
         # Validate user permissions and existence
         request = self.context['request']
         user_id = data.get('user_id')
+        
+        # Check if location is required (for employees and managers)
+        if request.user.role in ['MANAGER', 'EMPLOYEE']:
+            location_fields = [
+                'location_state', 'location_display_name',
+                'location_latitude', 'location_longitude'
+            ]
+            missing_fields = [field for field in location_fields if not data.get(field)]
+            if missing_fields:
+                raise serializers.ValidationError({
+                    field: ["This field is required for employees and managers."]
+                    for field in missing_fields
+                })
         
         if user_id:
             if request.user.role not in ['MANAGER', 'EMPLOYEE']:
@@ -96,63 +121,55 @@ class CreateOrderSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        request = self.context['request']
         items_data = validated_data.pop('items')
         user_id = validated_data.pop('user_id', None)
+        request = self.context.get('request')
         
-        # Get the user for the order
-        try:
-            order_user = CustomUser.objects.get(id=user_id) if user_id else request.user
-        except CustomUser.DoesNotExist:
-            raise serializers.ValidationError("User does not exist")
+        # Set the user based on user_id or current user
+        if user_id and request.user.role in ['MANAGER', 'EMPLOYEE']:
+            user = CustomUser.objects.get(id=user_id)
+        else:
+            user = request.user
+
+        # Add created_by_role
+        validated_data['created_by_role'] = request.user.role
         
-        with transaction.atomic():
-            # Create order first
-            order = Order.objects.create(
-                user=order_user,
-                total_amount=0,  # Will update after adding items
-                **validated_data
-            )
+        # Create order
+        order = Order.objects.create(user=user, **validated_data)
+        
+        # Create order items
+        for item_data in items_data:
+            OrderItem.objects.create(order=order, **item_data)
+        
+        return order 
+
+class UpdateOrderSerializer(serializers.ModelSerializer):
+    items = CreateOrderItemSerializer(many=True, required=False)
+    
+    class Meta:
+        model = Order
+        fields = ['shipping_address', 'payment_deadline', 'items']
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+        
+        # Update order fields
+        instance.shipping_address = validated_data.get('shipping_address', instance.shipping_address)
+        instance.payment_deadline = validated_data.get('payment_deadline', instance.payment_deadline)
+        instance.save()
+
+        if items_data is not None:
+            # Remove existing items
+            instance.items.all().delete()
             
-            total_amount = 0
-            # Process each item
+            # Create new items
             for item_data in items_data:
-                # Get and lock product
-                try:
-                    product = Product.objects.select_for_update().get(id=item_data['product_id'])
-                except Product.DoesNotExist:
-                    raise serializers.ValidationError(f"Product with id {item_data['product_id']} does not exist")
-                
-                # Validate stock
-                if product.stock < item_data['quantity']:
-                    raise serializers.ValidationError(
-                        f"Not enough stock for {product.name}. Available: {product.stock}"
-                    )
-                
-                # Create order item with current product price
+                product = Product.objects.get(id=item_data['product_id'])
                 OrderItem.objects.create(
-                    order=order,
+                    order=instance,
                     product=product,
                     quantity=item_data['quantity'],
-                    price=product.price  # Set the current product price
+                    price=product.price
                 )
-                
-                # Update product stock
-                product.stock -= item_data['quantity']
-                product.save()
-                
-                # Add to total using the current product price
-                total_amount += product.price * item_data['quantity']
-            
-            # Update order total
-            order.total_amount = total_amount
-            order.save()
-            
-            # Clear user's cart
-            try:
-                Cart.objects.filter(user=order_user).delete()
-            except Exception as e:
-                # Log the error but don't fail the order creation
-                logger.error(f"Error clearing cart: {str(e)}")
-            
-            return order 
+        
+        return instance 

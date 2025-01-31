@@ -1,7 +1,8 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import UserSelectHeader from './UserSelectHeader';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,10 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const { items } = useCart();
+  const location = useLocation();
+
+  // Only show user selection on products, orders, and cart pages
+  const showUserSelect = ['/products', '/orders', '/cart'].includes(location.pathname);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -28,9 +33,16 @@ export default function Layout({ children }: LayoutProps) {
                   <Link to="/orders" className="text-gray-800 hover:text-gray-600">
                     Orders
                   </Link>
-                  <Link to="/dashboard" className="text-gray-800 hover:text-gray-600">
-                    Dashboard
-                  </Link>
+                  {user.role === 'MANAGER' && (
+                    <>
+                      <Link to="/dashboard" className="text-gray-800 hover:text-gray-600">
+                        Dashboard
+                      </Link>
+                      <Link to="/users" className="text-gray-800 hover:text-gray-600">
+                        User Management
+                      </Link>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -67,6 +79,8 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
       </nav>
+
+      {showUserSelect && <UserSelectHeader />}
 
       <main className="container mx-auto px-4 py-8">
         {children}

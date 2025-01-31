@@ -106,3 +106,8 @@ class ProductViewSet(viewsets.ModelViewSet):
             'low_stock_products': low_stock,
             'out_of_stock': out_of_stock
         })
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context

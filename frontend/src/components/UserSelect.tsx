@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { getCustomers } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-
-interface User {
-  id: number;
-  username: string;
-  email: string;
-}
+import { useCustomer } from '../contexts/CustomerContext';
+import { User } from '../types/user';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 
 interface UserSelectProps {
   selectedUserId: number | null;
@@ -18,16 +21,16 @@ const UserSelect: React.FC<UserSelectProps> = ({ selectedUserId, onUserSelect })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user } = useAuth();
+  const { setSelectedCustomer } = useCustomer();
 
   useEffect(() => {
     const fetchUsers = async () => {
-      if (!user || !['MANAGER', 'EMPLOYEE'].includes(user.role)) return;
+      if (!user || !['MANAGER', 'EMPLOYEE'].includes(user.role?.toUpperCase())) return;
       
       try {
         setLoading(true);
         setError('');
         const response = await getCustomers();
-        console.log('Customer response:', response.data);
         setUsers(response.data);
       } catch (err) {
         console.error('Error fetching users:', err);
@@ -40,7 +43,21 @@ const UserSelect: React.FC<UserSelectProps> = ({ selectedUserId, onUserSelect })
     fetchUsers();
   }, [user]);
 
-  if (!user || !['MANAGER', 'EMPLOYEE'].includes(user.role)) {
+  const handleUserChange = (value: string) => {
+    if (value === 'all') {
+      onUserSelect(null);
+      setSelectedCustomer(null);
+    } else {
+      const userId = parseInt(value, 10);
+      const selectedUser = users.find(u => u.id === userId);
+      onUserSelect(userId);
+      if (selectedUser) {
+        setSelectedCustomer(selectedUser);
+      }
+    }
+  };
+
+  if (!user || !['MANAGER', 'EMPLOYEE'].includes(user.role?.toUpperCase())) {
     return null;
   }
 
@@ -53,24 +70,23 @@ const UserSelect: React.FC<UserSelectProps> = ({ selectedUserId, onUserSelect })
   }
 
   return (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        Select Customer
-      </label>
-      <select
-        value={selectedUserId || ''}
-        onChange={(e) => onUserSelect(e.target.value ? Number(e.target.value) : null)}
-        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-      >
-        <option value="">Order for myself</option>
+    <Select
+      value={selectedUserId?.toString() || 'all'}
+      onValueChange={handleUserChange}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="Select a customer" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Customers</SelectItem>
         {users.map((user) => (
-          <option key={user.id} value={user.id}>
-            {user.username} {user.email ? `(${user.email})` : ''}
-          </option>
+          <SelectItem key={user.id} value={user.id.toString()}>
+            {user.username} {user.email && `(${user.email})`}
+          </SelectItem>
         ))}
-      </select>
-    </div>
+      </SelectContent>
+    </Select>
   );
-};
+}
 
 export default UserSelect; 

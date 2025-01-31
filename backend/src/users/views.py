@@ -10,6 +10,9 @@ from .serializers import UserSerializer, UserUpdateSerializer
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import CustomUser
 import logging
+from django.db.models import Count, Sum
+from orders.models import Order
+from products.models import Product
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,38 @@ def csrf_token(request):
     The frontend will call this before making any POST/PUT/DELETE requests.
     """
     return Response({'detail': 'CSRF cookie set'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def session_check(request):
+    """
+    This endpoint is used to check if the user's session is still valid.
+    """
+    return Response({
+        'isValid': True,
+        'user': {
+            'id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+            'role': request.user.role
+        }
+    })
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@ensure_csrf_cookie
+def register_view(request):
+    """
+    Registration view that creates a new user
+    """
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response({
+            'detail': 'Account created successfully. You can login once your account is approved by an administrator.',
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -63,12 +98,15 @@ def login_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@csrf_protect
+@ensure_csrf_cookie
 def logout_view(request):
+    """
+    Logout view that handles user logout
+    """
     logout(request)
     return Response({'detail': 'Successfully logged out'})
 
-@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
     
@@ -92,6 +130,35 @@ class UserViewSet(viewsets.ModelViewSet):
                 'user': response.data
             }, status=status.HTTP_201_CREATED)
         return response
+
+    @action(detail=False, methods=['get'])
+    def get_customers(self, request):
+        """Get customers based on user role"""
+        user = request.user
+        
+        # Base queryset for active and approved customers
+        queryset = CustomUser.objects.filter(
+            role='CUSTOMER',
+            is_active=True,
+            is_approved=True
+        )
+        
+        # If user is employee, only return their assigned customers
+        if user.role == 'EMPLOYEE':
+            from .models import EmployeeCustomerAssignment
+            assigned_customer_ids = EmployeeCustomerAssignment.objects.filter(
+                employee=user
+            ).values_list('customer_id', flat=True)
+            queryset = queryset.filter(id__in=assigned_customer_ids)
+        # For managers, return all customers
+        elif user.role != 'MANAGER':
+            return Response(
+                {"detail": "You do not have permission to view customers."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = UserUpdateSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def me(self, request):
@@ -138,3 +205,48 @@ class UserViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get user statistics"""
+        if request.user.role != 'MANAGER':
+            return Response(
+                {"detail": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get all active users
+        total_users = CustomUser.objects.filter(is_active=True).count()
+        
+        # Get pending approval users (active users that are not approved)
+        pending_approval = CustomUser.objects.filter(
+            is_active=True,
+            is_approved=False
+        ).count()
+        
+        return Response({
+            'total_users': total_users,
+            'pending_approval': pending_approval
+        })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_stats(request):
+    """Get statistics for the authenticated user."""
+    user = request.user
+    
+    # Get order stats
+    orders = Order.objects.filter(user=user)
+    total_orders = orders.count()
+    total_spent = orders.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    
+    # Get product stats if user is staff
+    total_products = 0
+    if user.is_staff:
+        total_products = Product.objects.count()
+    
+    return Response({
+        'total_orders': total_orders,
+        'total_spent': total_spent,
+        'total_products': total_products,
+    })
