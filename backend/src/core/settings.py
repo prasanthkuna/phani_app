@@ -77,10 +77,14 @@ if DEBUG:
     }
 else:
     DATABASES = {
-        'default': dj_database_url.config(
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('RDS_DB_NAME', ''),
+            'USER': os.environ.get('RDS_USERNAME', ''),
+            'PASSWORD': os.environ.get('RDS_PASSWORD', ''),
+            'HOST': os.environ.get('RDS_HOSTNAME', ''),
+            'PORT': os.environ.get('RDS_PORT', '5432'),
+        }
     }
 
 # Password validation
@@ -114,7 +118,7 @@ else:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "https://venkata-srinivas-agencies.onrender.com",
+        "https://*.amplifyapp.com",  # AWS Amplify domain
     ]
     CORS_ALLOW_CREDENTIALS = True
 
@@ -133,7 +137,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "https://venkata-srinivas-agencies.onrender.com",
+    "https://*.amplifyapp.com",  # AWS Amplify domain
 ]
 
 # Cookie Settings
@@ -192,4 +196,14 @@ MEDIA_ROOT_PATH.joinpath('products').mkdir(exist_ok=True)
 # File Upload Settings
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
-MAX_UPLOAD_SIZE = 5242880  # 5MB 
+MAX_UPLOAD_SIZE = 5242880  # 5MB
+
+# AWS S3 Settings for Media Files (Optional but recommended)
+if not DEBUG:
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage' 
