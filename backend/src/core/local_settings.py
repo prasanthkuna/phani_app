@@ -86,19 +86,27 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'http://13.203.103.182:8081',
     'http://localhost:8081',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'http://13.203.103.182:8081',
     'http://localhost:8081',
+    'http://13.203.103.182:8080',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
 ]
 
-# Session settings
+# Cookie settings
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = False  # Since we're not using HTTPS
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False  # Since we're not using HTTPS
 SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 
 # Custom User Model

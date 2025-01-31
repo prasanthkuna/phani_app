@@ -119,6 +119,7 @@ else:
         f"http://{os.environ.get('EC2_PUBLIC_IP', '*')}",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://13.203.103.182:8081",  # Added frontend URL
     ]
     CORS_ALLOW_CREDENTIALS = True
 
@@ -138,23 +139,32 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://13.203.103.182:8081",  # Added frontend URL
+    "http://13.203.103.182:8080",  # Added backend URL
 ]
 
 # Cookie Settings
 if DEBUG:
-    CSRF_COOKIE_SAMESITE = 'Lax'  # Changed back to Lax for better security
-    SESSION_COOKIE_SAMESITE = 'Lax'  # Changed back to Lax for better security
-    CSRF_COOKIE_HTTPONLY = False  # Keep False to allow JavaScript access
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_HTTPONLY = False
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_SECURE = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_DOMAIN = None
-    CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:8000', 'http://127.0.0.1:8000']
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'http://13.203.103.182:8081',  # Added frontend URL
+        'http://13.203.103.182:8080',  # Added backend URL
+    ]
 else:
-    CSRF_COOKIE_SAMESITE = 'Strict'
-    SESSION_COOKIE_SAMESITE = 'Strict'
-    CSRF_COOKIE_SECURE = True
-    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = 'Lax'  # Changed from Strict to Lax for cross-origin
+    SESSION_COOKIE_SAMESITE = 'Lax'  # Changed from Strict to Lax for cross-origin
+    CSRF_COOKIE_SECURE = False  # Changed to False since we're not using HTTPS
+    SESSION_COOKIE_SECURE = False  # Changed to False since we're not using HTTPS
 
 # Static files configuration
 STATIC_URL = '/static/'

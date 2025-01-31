@@ -1,17 +1,18 @@
 import axios from 'axios';
 import { LocationData, getCurrentLocation } from './location';
+import config from '../config';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = config.API_URL;
 
 // Create a separate axios instance for getting CSRF token
 const csrfAxios = axios.create({
   baseURL: API_URL,
-  withCredentials: true
+  withCredentials: config.withCredentials
 });
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
+  withCredentials: config.withCredentials,
   xsrfCookieName: 'csrftoken',
   xsrfHeaderName: 'X-CSRFToken',
   headers: {
