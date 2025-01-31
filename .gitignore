@@ -39,7 +39,6 @@ coverage.xml
 venv/
 ENV/
 env/
-.env
 
 # Django
 *.log
