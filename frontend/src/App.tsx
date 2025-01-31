@@ -4,6 +4,7 @@ import { CustomerProvider } from './contexts/CustomerContext'
 import { CartProvider } from './contexts/CartContext'
 import { Toaster } from './components/ui/toaster'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Cart from './pages/Cart'
@@ -40,6 +41,7 @@ function App() {
           <CartProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               <Route element={<Layout><Outlet /></Layout>}>
                 <Route path="/" element={
                   <ProtectedRouteWithRedirect>

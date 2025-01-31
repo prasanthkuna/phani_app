@@ -10,7 +10,13 @@ export default defineConfig({
     strictPort: true,
   },
   preview: {
-    port: 8080,
+    port: 80,
     strictPort: true,
+    host: true
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000
   }
 })

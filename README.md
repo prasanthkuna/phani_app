@@ -70,7 +70,7 @@ A full-stack web application for managing pesticides and fertilizers business op
 ```bash
 cd backend
 python -m venv venv
-source venv/Scripts/activate  # Windows
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 cd src
 python manage.py migrate
@@ -82,4 +82,66 @@ python manage.py runserver
 cd frontend
 npm install
 npm run dev
+```
+
+## EC2 Deployment Instructions
+
+### 1. Create EC2 Instance
+1. Go to AWS Console > EC2
+2. Launch a new instance:
+   - Choose Ubuntu Server 22.04 LTS
+   - Select t2.micro (free tier)
+   - Create or select a key pair
+   - Configure Security Group:
+     - Allow SSH (Port 22)
+     - Allow HTTP (Port 80)
+     - Allow HTTPS (Port 443)
+
+### 2. Configure Environment
+1. Copy your EC2 instance's public IP
+2. Create `.env` file from `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+3. Update `.env` with your values:
+   - Set EC2_PUBLIC_IP to your instance's public IP
+   - Set secure passwords for DB and Django
+
+### 3. Deploy to EC2
+1. SSH into your EC2 instance:
+```bash
+ssh -i your-key.pem ubuntu@your-ec2-ip
+```
+
+2. Clone and setup:
+```bash
+cd /home/ubuntu
+git clone https://github.com/prasanthkuna/phani_app.git app
+cd app
+chmod +x scripts/*.sh
+./scripts/setup_ec2.sh
+./scripts/setup_nginx.sh
+```
+
+### 4. Future Deployments
+To deploy new changes:
+```bash
+./scripts/deploy.sh
+```
+
+## Project Structure
+```
+├── backend/
+│   ├── src/
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   └── package.json
+├── scripts/
+│   ├── setup_ec2.sh
+│   ├── setup_nginx.sh
+│   ├── deploy.sh
+│   └── nginx.conf
+├── .env.example
+└── README.md
 ``` 
