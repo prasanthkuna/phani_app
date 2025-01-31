@@ -11,4 +11,5 @@ pip install gunicorn psycopg2-binary
 # Run migrations
 cd src
 python manage.py collectstatic --no-input
-python manage.py migrate 
+python manage.py migrate
+python manage.py create_superuser 
